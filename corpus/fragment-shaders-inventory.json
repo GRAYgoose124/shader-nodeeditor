@@ -1,0 +1,695 @@
+{
+  "generatedBy": "scripts/fragment-shader-corpus.mjs",
+  "shadersRoot": "C:/Users/goose/Documents/Projects/fragment_shaders/shaders",
+  "count": 100,
+  "files": [
+    {
+      "path": "basicIFS/bufA.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "basicIFS/common.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "basicIFS/main.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "bezier.glsl",
+      "tags": [
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "cmn.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "concentric_rings.glsl",
+      "tags": [
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "countourmap.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "emfield/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "emfield/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "emfield/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "fakehyperobj.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "fourcharge/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "fourcharge/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "fourcharge/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "hopfy/image-incorrect.glsl",
+      "tags": [
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "ifs_dream/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "julia.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "mandelbrot/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/bufferB.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/image.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/psychedelic/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/psychedelic/bufferB.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/psychedelic/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbrot/psychedelic/image.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mandelbulb/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "massage_verse/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "mod_int_patterns/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mod_int_patterns/bufferB.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mod_int_patterns/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "mod_int_patterns/image.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "moirethanadream.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "moirre_patterns/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "newton_fractal/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "newton_fractal/filters.glsl",
+      "tags": [
+        "feedback_texel",
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "newton_fractal/image.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "newton_fractal/old_full/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "newton_fractal/old_full/image.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "newton_fractal/simplified/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "newton_fractal/simplified/bufferB.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "newton_fractal/simplified/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "newton_fractal/simplified/image.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "nnet/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "nnet/common.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "nnet/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "nnet/math.glsl",
+      "tags": [
+        "feedback_texel",
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "nnet/net.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "nnet/screen.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "nnet/texture.glsl",
+      "tags": [
+        "feedback_texel",
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "point_reflection/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/bufferB.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/bufferC.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/bufferD.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "reaction_diffusion/image.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "schroed/A.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "schroed/B.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "schroed/common.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "schroed/image.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "sdf_sandbox/image.glsl",
+      "tags": [
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "sdf_view/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "sobel_video/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "sobel_video/bufferB.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "sobel_video/bufferC.glsl",
+      "tags": [
+        "includes",
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "sobel_video/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "sobel_video/image.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "sphere_mapping/bufferA.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "sphere_mapping/image.glsl",
+      "tags": [
+        "full_screen_proc",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/new/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/new/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/new/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/old.glsl",
+      "tags": [
+        "feedback_texel",
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/reduced/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/reduced/bufferA2.glsl",
+      "tags": [
+        "feedback_texel",
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/reduced/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/reduced/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/uniformed/bufferA.glsl",
+      "tags": [
+        "feedback_texel",
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/uniformed/common.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "suesque_sandbox/uniformed/image.glsl",
+      "tags": [
+        "multipass",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "supercolliris/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "tracer/all.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "tracer/ballandstick.glsl",
+      "tags": [
+        "includes",
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "tracer/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "tracer/hopf.glsl",
+      "tags": [
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "tracer/image_carlo.glsl",
+      "tags": [
+        "includes",
+        "raymarch_sdf",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "tracer/image.glsl",
+      "tags": [
+        "full_screen_proc",
+        "includes"
+      ]
+    },
+    {
+      "path": "tracer/march.glsl",
+      "tags": [
+        "includes",
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "tracer/mc/a.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "tracer/mc/image.glsl",
+      "tags": [
+        "raymarch_sdf",
+        "texture_sample"
+      ]
+    },
+    {
+      "path": "tracer/platonic.glsl",
+      "tags": [
+        "includes",
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "tracer/sdf_utils.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "tracer/sdf.glsl",
+      "tags": [
+        "includes",
+        "raymarch_sdf"
+      ]
+    },
+    {
+      "path": "voromoire.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "voronoi/bufferA.glsl",
+      "tags": [
+        "includes",
+        "multipass"
+      ]
+    },
+    {
+      "path": "voronoi/common.glsl",
+      "tags": [
+        "multipass"
+      ]
+    },
+    {
+      "path": "voronoi/image.glsl",
+      "tags": [
+        "feedback_texel",
+        "multipass"
+      ]
+    },
+    {
+      "path": "voronoibanding.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "wavelet/image.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    },
+    {
+      "path": "whatthefrequency.glsl",
+      "tags": [
+        "full_screen_proc"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+	"name": "@shadertoy/runner",
+	"version": "0.0.1",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc"
+	},
+	"dependencies": {
+		"@shadertoy/compiler": "file:../compiler"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
+}

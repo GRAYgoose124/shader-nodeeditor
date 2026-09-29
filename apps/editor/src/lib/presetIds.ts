@@ -1,0 +1,35 @@
+/** Preset identifiers; UI groups and loaders live in [presetCatalog.ts](presetCatalog.ts). */
+
+export type PresetId =
+	| 'raymarch'
+	| 'feedback'
+	| 'lit_sphere'
+	| 'still_life'
+	| 'csg_subtract'
+	| 'domain_fbm_sphere'
+	| 'p7_lookat_menger'
+	| 'p7_voronoi'
+	| 'p7_palette'
+	| 'p7_fresnel'
+	| 'p8_torus_octa_hex'
+	| 'p8_torus_octa_feedback'
+	| 'proc2d_fbm'
+	| 'proc2d_ridged_warp'
+	| 'proc2d_kaleid_voro'
+	| 'proc2d_buffer'
+	| 'proc2d_dual_fbm'
+	| 'proc2d_mandelbrot'
+	| 'proc2d_ifs'
+	| 'ifs_min2_chaos'
+	| 'newton_basins_demo'
+	| 'ifs_inversion_ring'
+	| 'ifs_bufa_channel'
+	| 'bufA_fractal_tex_rm'
+	| 'suesque_sandbox_field'
+	| 'advanced_atelier'
+	| 'chronos_lattice'
+	| 'show_ink_diffusion'
+	| 'show_sdf_cathedral'
+	| 'show_fractal_artifact';
+
+export type PresetGroup = { label: string; items: { id: PresetId; label: string }[] };

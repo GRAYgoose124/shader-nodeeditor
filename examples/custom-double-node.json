@@ -1,0 +1,11 @@
+[
+	{
+		"id": "my_double",
+		"label": "Double float",
+		"category": "Custom",
+		"inputs": [{ "id": "a", "type": "float" }],
+		"outputs": [{ "id": "out", "type": "float" }],
+		"params": [],
+		"template": "// node: {{nodeId}}\nfloat {{out:out}} = {{in:a}} * 2.0;"
+	}
+]

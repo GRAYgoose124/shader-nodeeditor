@@ -1,0 +1,11 @@
+{
+	"name": "shadertoy-nodeeditor",
+	"private": true,
+	"workspaces": ["packages/*", "apps/*"],
+	"scripts": {
+		"dev": "npm run dev -w editor",
+		"build": "npm run build -w @shadertoy/compiler && npm run build -w @shadertoy/runner && npm run build -w editor",
+    "test": "npm run test -w @shadertoy/compiler && npm run test -w editor",
+		"postinstall": "npm run build -w @shadertoy/compiler && npm run build -w @shadertoy/runner"
+	}
+}

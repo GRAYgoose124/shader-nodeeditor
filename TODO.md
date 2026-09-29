@@ -1,0 +1,13 @@
+- [x] box selection for nodes (click and drag)
+- [x] quick grouping, quick node manip features
+- [x] snap to grid / align by node depth
+- [x] view node source (guided glsl previews)
+- [x] convert complex node subgraphs like Scene SDF to a compiled custom node with the exact code that it would have been (for further refinement/direct editing)
+  - [ ] This needs to be done generically so we can compile all complex node subgraphs not just Scene SDFs.
+
+- [x] Multipass bar + shared `activePass` with header (per-pass error badges; preview still single-pass)
+- [x] Editor shell components + Ctrl+K quick-add; uniform presets in graph JSON; PNG + WebM capture
+- [x] Frame `boundaryPorts` in doc meta + compiler validation; see `packages/compiler/ARCHITECTURE.md`
+- [x] Accurate/efficient GI / Pathtracing.
+- [ ] Nodes to add image/video/ as textures and sound that can be reacted to.
+- [ ] Dense nodes like menger or kaleidoscope need more composability controlsDe
