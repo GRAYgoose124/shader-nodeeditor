@@ -128,7 +128,12 @@
 
 	var canvas = document.getElementById('exp');
 	if (!canvas) return showErr('Missing canvas');
-	var gl = canvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false });
+	var gl = canvas.getContext('webgl2', {
+		alpha: false,
+		antialias: false,
+		premultipliedAlpha: false,
+		preserveDrawingBuffer: true,
+	});
 	if (!gl) return showErr('WebGL2 is required (use a recent desktop or mobile browser).');
 
 	var bundle;
@@ -181,8 +186,12 @@
 		var off = typeof spec.offset === 'number' && isFinite(spec.offset) ? spec.offset : 0;
 		return clamp(center + (w01 - 0.5) * span + off, min, max);
 	}
+	/** Must match @shadertoy/compiler `sanitizeNodeId` / `uniformName` (manifest uses sanitized ids). */
+	function sanitizeNodeId(nodeId) {
+		return String(nodeId).replace(/[^a-zA-Z0-9_]/g, '_');
+	}
 	function uniformName(nodeId, paramId) {
-		return 'u_' + nodeId + '_' + paramId;
+		return 'u_' + sanitizeNodeId(nodeId) + '_' + paramId;
 	}
 	function buildUniformInfo() {
 		var m = {};
@@ -209,8 +218,14 @@
 			var ui = uniformInfoByName[uname];
 			// If the shader doesn't declare the uniform, ignore.
 			if (!ui) continue;
-			var center = userUniformValues.has(uname) ? userUniformValues.get(uname) : ui.default;
-			if (typeof center !== 'number') continue; // only float anims supported
+			// Fixed center from compile-time param (matches editor preview), not the runner snapshot
+			// or last frame's output (which would drift / cancel motion).
+			var uDef = ui.default;
+			var uSnap = userUniformValues.get(uname);
+			var center;
+			if (typeof uDef === 'number' && isFinite(uDef)) center = uDef;
+			else if (typeof uSnap === 'number' && isFinite(uSnap)) center = uSnap;
+			else continue;
 			var min = typeof ui.min === 'number' ? ui.min : center - 1;
 			var max = typeof ui.max === 'number' ? ui.max : center + 1;
 			userUniformValues.set(uname, sampleValue(spec, iTimeSec, center, min, max));
@@ -248,6 +263,17 @@
 			var d = u.default;
 			if (Object.prototype.toString.call(d) === '[object Array]') userUniformValues.set(u.name, d.slice());
 			else userUniformValues.set(u.name, d);
+		}
+	}
+
+	var iuSnap = bundle.initialUniformScalars;
+	if (iuSnap && typeof iuSnap === 'object') {
+		for (var iuKey in iuSnap) {
+			if (!Object.prototype.hasOwnProperty.call(iuSnap, iuKey)) continue;
+			var iuVal = iuSnap[iuKey];
+			if (typeof iuVal === 'number' && isFinite(iuVal) && uniformInfoByName[iuKey]) {
+				userUniformValues.set(iuKey, iuVal);
+			}
 		}
 	}
 
@@ -416,6 +442,10 @@
 		setF('iTime', (performance.now() - timeStart) * 0.001);
 		setI('iFrame', frame);
 		setV4('iMouse', mx, my, mouse.click ? mx : -mx, mouse.click ? my : -my);
+		setF('u_audioLevel', 0);
+		setF('u_audioBandLow', 0);
+		setF('u_audioBandMid', 0);
+		setF('u_audioBandHigh', 0);
 
 		userUniformValues.forEach(function (val, name) {
 			var L = locs.get(name);
@@ -439,8 +469,18 @@
 		for (var i = 0; i < 4; i++) {
 			var uname = ch[i];
 			var L = locs.get(uname);
-			var srcBuf = pass.channels[uname];
-			var tex = srcBuf ? getTextureForBuffer(srcBuf) : blackTex;
+			var src = pass.channels[uname];
+			var tex = blackTex;
+			if (src) {
+				if (typeof src === 'string') {
+					tex = getTextureForBuffer(src);
+				} else if (src.kind === 'buffer') {
+					tex = getTextureForBuffer(src.bufferId);
+				} else {
+					/* media: not bundled in static export */
+					tex = blackTex;
+				}
+			}
 			gl.activeTexture(gl.TEXTURE0 + i);
 			gl.bindTexture(gl.TEXTURE_2D, tex);
 			if (L) gl.uniform1i(L, i);
@@ -454,18 +494,21 @@
 			var prog = programs.get(pass.id);
 			if (!prog) continue;
 
-			gl.bindFramebuffer(gl.FRAMEBUFFER, getWriteFbo(pass.id));
-			gl.viewport(0, 0, w, h);
-			gl.useProgram(prog);
-			applyUniforms(pass.id);
-			bindChannels(pass);
-			gl.disable(gl.DEPTH_TEST);
-			gl.disable(gl.BLEND);
-			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			var sub = Math.max(1, Math.min(32, Math.floor(pass.substeps != null ? pass.substeps : 1)));
+			for (var si = 0; si < sub; si++) {
+				gl.bindFramebuffer(gl.FRAMEBUFFER, getWriteFbo(pass.id));
+				gl.viewport(0, 0, w, h);
+				gl.useProgram(prog);
+				applyUniforms(pass.id);
+				bindChannels(pass);
+				gl.disable(gl.DEPTH_TEST);
+				gl.disable(gl.BLEND);
+				gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-			if (pass.id !== 'image') {
-				gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-				flipBuffer(pass.id);
+				if (pass.id !== 'image') {
+					gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+					flipBuffer(pass.id);
+				}
 			}
 		}
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null);

@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import type { CompileResult } from '@shadertoy/compiler';
+	import { get } from 'svelte/store';
+	import type { CompileResult, GraphMeta } from '@shadertoy/compiler';
+	import { mediaFileById } from '$lib/editor/mediaFileById.js';
 	import { uniformName } from '@shadertoy/compiler';
 	import { ShadertoyRunner } from '@shadertoy/runner';
 
 	let {
+		graphMeta = null as GraphMeta | null,
 		compileResult = null,
 		/** Increment when graph mutates so we reload GL programs even if sources match a cached string. */
 		reloadKey = 0,
@@ -21,7 +24,17 @@
 		onCanvasReady,
 		/** Called each frame before `renderFrame` while not paused (e.g. time-driven uniforms). */
 		beforeFrame = undefined as ((r: ShadertoyRunner) => void) | undefined,
+		/** Called after `renderFrame` (still image is on the default framebuffer). */
+		afterFrame = undefined as ((r: ShadertoyRunner) => void) | undefined,
+		/** When true, `readPixels` at canvas center after the image pass (8-bit RGBA, linearized 0–1 in callback). */
+		sampleDebugCenterPixel = false,
+		onDebugCenterPixel = undefined as
+			| ((rgba: [number, number, number, number]) => void)
+			| undefined,
+		/** Applied synchronously after a successful `load()` so debug toggles affect the first redraw. */
+		applyGpuDebugAfterLoad = undefined as ((r: ShadertoyRunner) => void) | undefined,
 	}: {
+		graphMeta?: GraphMeta | null;
 		compileResult: CompileResult | null;
 		reloadKey?: number;
 		paused?: boolean;
@@ -32,7 +45,17 @@
 		onRunnerReady?: (runner: ShadertoyRunner | null) => void;
 		onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 		beforeFrame?: (r: ShadertoyRunner) => void;
+		afterFrame?: (r: ShadertoyRunner) => void;
+		sampleDebugCenterPixel?: boolean;
+		onDebugCenterPixel?: (rgba: [number, number, number, number]) => void;
+		applyGpuDebugAfterLoad?: (r: ShadertoyRunner) => void;
 	} = $props();
+
+	const dbgPix = { sample: false, cb: undefined as typeof onDebugCenterPixel };
+	$effect(() => {
+		dbgPix.sample = !!sampleDebugCenterPixel;
+		dbgPix.cb = onDebugCenterPixel;
+	});
 
 	let canvas: HTMLCanvasElement;
 	let runner = $state<ShadertoyRunner | null>(null);
@@ -43,9 +66,21 @@
 	let orbitTargetId = $state<string | null>(null);
 	let uniformTweak: (() => void) | undefined = undefined;
 	let beforeFrameCb: ((r: ShadertoyRunner) => void) | undefined = undefined;
+	let afterFrameCb: ((r: ShadertoyRunner) => void) | undefined = undefined;
 	let lastAppliedTimeRestartKey = 0;
-	let lastLoadedReloadKey = -1;
-	let lastLoadedCompileResult: CompileResult | null = null;
+	/** Bumps whenever the load effect runs so a stale `load` does not commit GPU errors after a newer compile. */
+	let previewLoadGen = 0;
+
+	function syncRunnerMedia(r: ShadertoyRunner | null) {
+		if (!r) return;
+		const meta = graphMeta;
+		if (!meta?.mediaInputs?.length) return;
+		const files = get(mediaFileById);
+		for (const m of meta.mediaInputs) {
+			const f = files.get(m.id);
+			if (f) void r.setMediaFromFile(m.id, f);
+		}
+	}
 
 	$effect(() => {
 		orbitTargetId = lookatOrbitNodeId ?? null;
@@ -55,6 +90,9 @@
 	});
 	$effect(() => {
 		beforeFrameCb = beforeFrame;
+	});
+	$effect(() => {
+		afterFrameCb = afterFrame;
 	});
 
 	$effect(() => {
@@ -67,7 +105,10 @@
 		if (paused) {
 			r.pauseClock();
 			beforeFrameCb?.(r);
-			r.renderFrame(mouse);
+			r.renderFrame(mouse, {
+				sampleCenterPixel: !!(dbgPix.sample && dbgPix.cb),
+			});
+			afterFrameCb?.(r);
 		} else {
 			r.resumeClock();
 		}
@@ -82,7 +123,10 @@
 		untrack(() => {
 			r.resetTime();
 			beforeFrameCb?.(r);
-			r.renderFrame(mouse);
+			r.renderFrame(mouse, {
+				sampleCenterPixel: !!(dbgPix.sample && dbgPix.cb),
+			});
+			afterFrameCb?.(r);
 		});
 	});
 
@@ -121,9 +165,16 @@
 	}
 
 	onMount(() => {
+		const unsubMedia = mediaFileById.subscribe(() => {
+			syncRunnerMedia(runner);
+		});
 		onCanvasReady?.(canvas);
 		try {
-			runner = new ShadertoyRunner(canvas);
+			runner = new ShadertoyRunner(canvas, {
+				onDebugCenterPixel: (c) => dbgPix.cb?.(c),
+				/** Sync Live Uniforms / other readers when `load()` re-seeds after graph edits. */
+				onUniformsChanged: () => uniformTweak?.(),
+			});
 			onRunnerReady?.(runner);
 		} catch (e) {
 			gpuError = e instanceof Error ? e.message : String(e);
@@ -214,13 +265,17 @@
 			const rn = runner;
 			if (rn && !loopFlags.paused) {
 				beforeFrameCb?.(rn);
-				rn.renderFrame(mouse);
+				rn.renderFrame(mouse, {
+					sampleCenterPixel: !!(dbgPix.sample && dbgPix.cb),
+				});
+				afterFrameCb?.(rn);
 			}
 			raf = requestAnimationFrame(loop);
 		};
 		raf = requestAnimationFrame(loop);
 
 		return () => {
+			unsubMedia();
 			cancelAnimationFrame(raf);
 			ro.disconnect();
 			canvas.removeEventListener('pointermove', onMove);
@@ -236,18 +291,17 @@
 	$effect(() => {
 		const r = runner;
 		const c = compileResult;
+		const myGen = ++previewLoadGen;
 		if (!r || !c) {
 			gpuError = null;
 			return;
 		}
-		if (reloadKey === lastLoadedReloadKey && c === lastLoadedCompileResult) return;
-		lastLoadedReloadKey = reloadKey;
-		lastLoadedCompileResult = c;
 		void reloadKey;
 		void Object.values(c.passes)
 			.map((p) => p.fragmentSource)
 			.join('\n//--pass--\n');
 		const err = r.load(c);
+		if (myGen !== previewLoadGen) return;
 		gpuError = c.errors.length > 0 ? null : err;
 		// After a successful shader load, force one draw after applying `beforeFrame`.
 		// This ensures baked param animations become visible immediately, even if the first RAF tick
@@ -259,7 +313,12 @@
 			// would rerun (and call `r.load`) on pointer movement / callback wiring.
 			untrack(() => {
 				beforeFrameCb?.(r);
-				r.renderFrame(mouse);
+				applyGpuDebugAfterLoad?.(r);
+				syncRunnerMedia(r);
+				r.renderFrame(mouse, {
+					sampleCenterPixel: !!(dbgPix.sample && dbgPix.cb),
+				});
+				afterFrameCb?.(r);
 			});
 		}
 	});

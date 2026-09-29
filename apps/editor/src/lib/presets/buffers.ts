@@ -1,7 +1,13 @@
 import type { Edge, Node } from '@xyflow/svelte';
 import type { GraphDocument } from '@shadertoy/compiler';
 import { suesqueSandboxFieldGraphDocument } from '@shadertoy/compiler';
-import { createGraphNode, docToFlowNodesAndEdges, toFlowNode, type ShaderNodeData } from '../flowDoc.js';
+import {
+	createGraphNode,
+	docToFlowNodesAndEdges,
+	toFlowNode,
+	type FlowNodeAny,
+	type ShaderNodeData,
+} from '../flowDoc.js';
 import { makeEdge } from './utils.js';
 
 /** bufA: animated palette by time → image samples iChannel0 */
@@ -47,7 +53,7 @@ export function metaForFeedbackDemo(): GraphDocument['meta'] {
  * (`suesqueSandboxFieldGraphDocument`): CHG/STENCIL is **`vec4_channels`** + float trig/arith + **`vec4_swizzle`** (no **`expr_vec4`**).
  * Approximation: `iFrame - cFrame < 100` when `cFrame`≈0 → **`mask_frame_below`**.
  */
-export function createSuesqueSandboxFieldFlow(): { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] } {
+export function createSuesqueSandboxFieldFlow(): { nodes: FlowNodeAny[]; edges: Edge[] } {
 	const doc = structuredClone(suesqueSandboxFieldGraphDocument());
 	return docToFlowNodesAndEdges(doc);
 }

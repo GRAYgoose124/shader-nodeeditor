@@ -12,9 +12,15 @@
 		type NodeTypes,
 	} from '@xyflow/svelte';
 	import { SelectionMode } from '@xyflow/system';
-	import { SHADER_NODE_PATCH_KEY, type ShaderNodePatchFn } from '$lib/editor/shaderNodeContext.js';
+	import {
+		SHADER_NODE_PARAM_BYPASS_KEY,
+		SHADER_NODE_PATCH_KEY,
+		type ShaderNodeParamBypassPatchFn,
+		type ShaderNodePatchFn,
+	} from '$lib/editor/shaderNodeContext.js';
 	import { errorChromeStore } from '$lib/editor/errorChromeStore.js';
 	import EditorFlowFocus from '$lib/editor/EditorFlowFocus.svelte';
+	import EditorFlowViewportBridge from '$lib/editor/EditorFlowViewportBridge.svelte';
 
 	let {
 		nodes = $bindable(),
@@ -25,6 +31,7 @@
 		snapGridOn,
 		isValidConnection,
 		patchShaderParam,
+		patchShaderParamGraphBypass,
 		onConnect,
 		onFlowDelete,
 		onSelectionChange,
@@ -36,6 +43,8 @@
 		errorPortsByNode = new Map<string, { inputs: Set<string>; outputs: Set<string> }>(),
 		focusTick = 0,
 		focusNodeId = null as string | null,
+		focusEdgeTick = 0,
+		focusEdgeId = null as string | null,
 	}: {
 		nodes: Node[];
 		edges: Edge[];
@@ -45,6 +54,7 @@
 		snapGridOn: boolean;
 		isValidConnection: (c: Connection | Edge) => boolean;
 		patchShaderParam: ShaderNodePatchFn;
+		patchShaderParamGraphBypass: ShaderNodeParamBypassPatchFn;
 		onConnect: (c: Connection) => void;
 		onFlowDelete: (p: { nodes: Node[]; edges: Edge[] }) => void;
 		onSelectionChange: (p: { nodes: Node[] }) => void;
@@ -56,6 +66,8 @@
 		errorPortsByNode?: Map<string, { inputs: Set<string>; outputs: Set<string> }>;
 		focusTick?: number;
 		focusNodeId?: string | null;
+		focusEdgeTick?: number;
+		focusEdgeId?: string | null;
 	} = $props();
 
 	$effect(() => {
@@ -74,6 +86,11 @@
 	setContext(
 		SHADER_NODE_PATCH_KEY,
 		(nodeId: string, paramId: string, value: number) => patchShaderParam(nodeId, paramId, value),
+	);
+	setContext(
+		SHADER_NODE_PARAM_BYPASS_KEY,
+		(nodeId: string, paramId: string, bypassed: boolean) =>
+			patchShaderParamGraphBypass(nodeId, paramId, bypassed),
 	);
 </script>
 
@@ -100,7 +117,13 @@
 		onreconnect={onReconnect}
 		onnodedragstop={onNodeDragStop}
 	>
-		<EditorFlowFocus focusTick={focusTick} focusNodeId={focusNodeId} />
+		<EditorFlowViewportBridge />
+		<EditorFlowFocus
+			focusTick={focusTick}
+			focusNodeId={focusNodeId}
+			focusEdgeTick={focusEdgeTick}
+			focusEdgeId={focusEdgeId}
+		/>
 		<Background gap={[16, 16]} bgColor="#080a0d" patternColor="#1c2433" />
 		<Controls />
 		<MiniMap
@@ -138,9 +161,20 @@
 	.flow-wrap :global(.svelte-flow__controls-button:hover) {
 		background: #222833;
 	}
-	.flow-wrap :global(.edge-type-mismatch path),
 	.flow-wrap :global(.edge-error path) {
-		stroke: #ff6666 !important;
-		stroke-width: 2.5px;
+		stroke: #ff5555 !important;
+		stroke-width: 3.5px;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		animation: flow-edge-error-pulse 1.15s ease-in-out infinite;
+	}
+	@keyframes flow-edge-error-pulse {
+		0%,
+		100% {
+			stroke-opacity: 1;
+		}
+		50% {
+			stroke-opacity: 0.78;
+		}
 	}
 </style>

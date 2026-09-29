@@ -64,8 +64,29 @@ export function parseValidateAnchors(errors: string[], knownNodeIds?: Set<string
 
 	const keep = (id: string) => !knownNodeIds || knownNodeIds.has(id);
 
+	const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+	function addEdgeIdsFromSuffix(errLine: string): void {
+		const semi = errLine.lastIndexOf(';');
+		if (semi < 0) return;
+		const tail = errLine.slice(semi + 1).trim();
+		const listM = tail.match(/^edges\s+(.+)$/i);
+		if (listM?.[1]) {
+			uuidRe.lastIndex = 0;
+			let um: RegExpExecArray | null;
+			while ((um = uuidRe.exec(listM[1])) !== null) {
+				edgeIds.add(um[0]!);
+			}
+			return;
+		}
+		const oneM = tail.match(/^edge\s+([0-9a-f-]{36})$/i);
+		if (oneM?.[1]) edgeIds.add(oneM[1]);
+	}
+
 	for (const err of errors) {
 		let m: RegExpMatchArray | null;
+
+		addEdgeIdsFromSuffix(err);
 
 		m = err.match(/^Node ([^\s]+) /);
 		if (m?.[1] && keep(m[1])) nodeIds.add(m[1]);
@@ -91,7 +112,7 @@ export function parseValidateAnchors(errors: string[], knownNodeIds?: Set<string
 			portMapGet(portsByNode, m[1]).inputs.add(m[2]);
 		}
 
-		m = err.match(/^Pass [^:]+: sdf_tessellate_feedback motif is wired to ([^\s]+) outside/);
+		m = err.match(/^Pass [^:]+: fractal motif pullback \([^)]+\) motif is wired to ([^\s]+) outside/);
 		if (m?.[1] && keep(m[1])) nodeIds.add(m[1]);
 
 		m = err.match(/Unknown node type: [^(]+\(([^)]+)\)/);

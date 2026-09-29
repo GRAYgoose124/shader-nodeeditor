@@ -1,9 +1,20 @@
 # Media inputs (textures + audio) — design
 
+## Implementation status (shipped in tree)
+
+The following matches the current codebase (see also [`docs/shader-pipeline.md`](../../shader-pipeline.md) and [`packages/compiler/ARCHITECTURE.md`](../../../packages/compiler/ARCHITECTURE.md)):
+
+- **M1:** `GraphMeta.mediaInputs`, `IChannelSlotBinding` (`BufferId` | `{ media: string }`), validation, serialize/clipboard round-trip for meta fields.
+- **M2:** Inspector **Media** panel (`EditorInspectorMediaPanel.svelte`), file pickers, session `File` map (`mediaFileById.ts`), runner texture + video upload/sync, `sample_channel` / raymarch sampling against bound `iChannelK`.
+- **M3:** Runner Web Audio analysis; fragment uniforms `u_audioLevel`, `u_audioBandLow`, `u_audioBandMid`, `u_audioBandHigh`; Core builtin **`audio_levels`** exposes them as one **`vec4`** (spec text below still says “float outputs” as a general idea—v1 uses this single vec4 port).
+- **M4:** Partially—rebind-after-import and per-pass channel UI are in place; exhaustive empty/error polish and “auto-bind first input to iChannel0” may still evolve.
+
+**Non-goals unchanged:** no URL/asset browser; four channels per pass; no audio-as-texture on `iChannelK` in v1.
+
 ## Goal
 Ship **first-class media inputs** (image/video textures + audio) in `shadertoy-nodeeditor` so users can build Shadertoy-style shaders that react to external media without custom hacks.
 
-This is the most direct “missing capability” called out in [`TODO.md`](C:\Users\goose\Documents\Projects\shadertoy-nodeeditor\TODO.md) and unblocks many interesting shaders immediately.
+This was the most direct “missing capability” formerly called out in [`TODO.md`](../../../TODO.md) (now marked done there with pointers into code).
 
 ## Success criteria (definition of done)
 - Users can add at least one **Image/Video Texture** input and one **Audio** input, wire them into a shader graph, and see results in preview.
@@ -37,7 +48,7 @@ Sketch:
 - `meta.mediaInputs`: catalog of reusable input definitions (id + kind + config)
 - `meta.iChannels`: per-pass mapping \(already discussed in compiler docs\) will be extended to support **external media ids** in addition to pass ids.
 
-This aligns with existing architecture notes in [`packages/compiler/ARCHITECTURE.md`](C:\Users\goose\Documents\Projects\shadertoy-nodeeditor\packages\compiler\ARCHITECTURE.md) where `meta.iChannels` is already the intended binding mechanism for runner behavior.
+This aligns with existing architecture notes in [`packages/compiler/ARCHITECTURE.md`](../../../packages/compiler/ARCHITECTURE.md) where `meta.iChannels` is the binding mechanism for runner behavior (now including `{ media: id }` slots).
 
 ### 2) UX: channel binding is a small, always-visible panel
 Add a compact “Channels” panel in the editor:
@@ -51,7 +62,7 @@ This keeps the workflow fast and discoverable without requiring new node types p
 Keep GLSL contracts close to Shadertoy:
 - Textures: `sampler2D iChannel0..3`
 - Audio: either
-  - **uniform floats** (e.g. `uAudioLevel`, `uAudioBand0..N`) for immediate utility, and/or
+  - **uniform floats** (implemented as `u_audioLevel`, `u_audioBandLow`, `u_audioBandMid`, `u_audioBandHigh`; see `packages/compiler/src/globalUniforms.ts`), and/or
   - an **audio texture** bound to an `iChannelK` (more Shadertoy-faithful but more plumbing)
 
 For v1, prefer **uniforms first** for audio (simpler, debuggable, good enough), and optionally add an audio texture in v2.

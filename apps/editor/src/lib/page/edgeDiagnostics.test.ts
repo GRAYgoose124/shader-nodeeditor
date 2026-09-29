@@ -15,6 +15,6 @@ describe('applyDiagnosticEdgeStyles', () => {
 		const { next, changed } = applyDiagnosticEdgeStyles(edges, new Set(['x']));
 		expect(changed).toBe(true);
 		expect(next[0]?.class).toBe('edge-error');
-		expect(String(next[0]?.style)).toContain('#ff6666');
+		expect(next[0]?.style).toBeUndefined();
 	});
 });

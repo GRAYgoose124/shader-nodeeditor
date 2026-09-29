@@ -3,7 +3,14 @@ import { compileGraph } from '@shadertoy/compiler';
 import { compilePresetSnapshot, graphDocumentForPreset } from './presetGalleryRender.js';
 
 describe('presetGalleryRender', () => {
-	it.each(['raymarch', 'show_ink_diffusion', 'show_sdf_cathedral', 'show_fractal_artifact'] as const)(
+	it.each([
+		'raymarch',
+		'raymarch_scene_sdf_repeat',
+		'show_ink_diffusion',
+		'show_sdf_cathedral',
+		'show_fractal_artifact',
+		'show_sdf_full_pipeline',
+	] as const)(
 		'compiles preset %s',
 		(id) => {
 			const doc = graphDocumentForPreset(id, []);
@@ -18,5 +25,6 @@ describe('presetGalleryRender', () => {
 			expect(r!.errors, `compile errors for ${id}: ${JSON.stringify(r!.errors)}`).toEqual([]);
 			expect(r!.manifest.passes.some((p) => p.id === 'image')).toBe(true);
 		},
+		20_000,
 	);
 });

@@ -15,6 +15,8 @@
 	import DockedInspector from './DockedInspector.svelte';
 	import DockedProblems from './DockedProblems.svelte';
 	import DockedPreview from './DockedPreview.svelte';
+	import DockedPresetLibrary from './DockedPresetLibrary.svelte';
+	import DockedButtonPalette from './DockedButtonPalette.svelte';
 
 	const STORAGE_KEY = 'editor-dock-layout-v1';
 
@@ -61,6 +63,10 @@
 				return new SvelteDockPanel(DockedProblems as Component);
 			case 'preview':
 				return new SvelteDockPanel(DockedPreview as Component);
+			case 'presets':
+				return new SvelteDockPanel(DockedPresetLibrary as Component);
+			case 'toolbar':
+				return new SvelteDockPanel(DockedButtonPalette as Component);
 			default:
 				return new SvelteDockPanel(DockedPalette as Component);
 		}
@@ -125,6 +131,13 @@
 			initialWidth: 200,
 		});
 		dv.addPanel({
+			id: 'toolbar',
+			component: 'toolbar',
+			title: 'Toolbar',
+			position: { referencePanel: 'palette', direction: 'within' },
+			renderer: 'always',
+		});
+		dv.addPanel({
 			id: 'inspector',
 			component: 'inspector',
 			title: 'Inspector',
@@ -137,6 +150,13 @@
 			title: 'Problems',
 			position: { referencePanel: 'graph', direction: 'below' },
 			initialHeight: 160,
+		});
+		dv.addPanel({
+			id: 'presets',
+			component: 'presets',
+			title: 'Presets',
+			position: { referencePanel: 'problems', direction: 'within' },
+			renderer: 'always',
 		});
 	}
 
@@ -159,6 +179,24 @@
 			}
 		} else {
 			buildDefaultLayout(dv);
+		}
+		if (!dv.getPanel('toolbar') && dv.getPanel('palette')) {
+			dv.addPanel({
+				id: 'toolbar',
+				component: 'toolbar',
+				title: 'Toolbar',
+				position: { referencePanel: 'palette', direction: 'within' },
+				renderer: 'always',
+			});
+		}
+		if (!dv.getPanel('presets') && dv.getPanel('problems')) {
+			dv.addPanel({
+				id: 'presets',
+				component: 'presets',
+				title: 'Presets',
+				position: { referencePanel: 'problems', direction: 'within' },
+				renderer: 'always',
+			});
 		}
 		syncPreviewPanelPresence();
 

@@ -1,11 +1,23 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import { Position, type Node, type NodeProps } from '@xyflow/svelte';
-	import { buildRegistry, isParamVisible } from '@shadertoy/compiler';
+	import { Position, type Node, type NodeProps, useStore } from '@xyflow/svelte';
+	import {
+		buildRegistry,
+		effectiveParamNodePins,
+		isParamGraphBypassed,
+		isParamSliderDriver,
+		isParamVisible,
+		paramWirePortId,
+	} from '@shadertoy/compiler';
 	import type { GlslType, ParamDef } from '@shadertoy/compiler';
 	import type { ShaderNodeData } from './flowDoc.js';
 	import { customTypesStore } from './customTypesStore.js';
-	import { SHADER_NODE_PATCH_KEY, type ShaderNodePatchFn } from '$lib/editor/shaderNodeContext.js';
+	import {
+		SHADER_NODE_PARAM_BYPASS_KEY,
+		SHADER_NODE_PATCH_KEY,
+		type ShaderNodeParamBypassPatchFn,
+		type ShaderNodePatchFn,
+	} from '$lib/editor/shaderNodeContext.js';
 	import { errorChromeStore } from '$lib/editor/errorChromeStore.js';
 	import ShaderPortHandle from '$lib/ShaderPortHandle.svelte';
 	import {
@@ -25,30 +37,55 @@
 	const registry = $derived(buildRegistry(customs));
 	const def = $derived(registry.get(gn.typeId));
 	const patchParam = getContext<ShaderNodePatchFn | undefined>(SHADER_NODE_PATCH_KEY);
+	const patchParamBypass = getContext<ShaderNodeParamBypassPatchFn | undefined>(
+		SHADER_NODE_PARAM_BYPASS_KEY,
+	);
+	const store = useStore();
 
 	const nodeSubtitle = $derived(getShaderNodeSubtitle(def, gn.data));
 	const subtitleIsExpr = $derived(def?.codegenKind === 'glsl_expr');
 
-	const canvasParamDefs = $derived.by((): ParamDef[] => {
+	const dataInputs = $derived(def?.inputs.filter((i) => !i.optional) ?? []);
+
+	/** Inspector "Show on graph" + optional `canvasParams` fallback; see `effectiveParamNodePins`. */
+	const pinnedSliderParamDefs = $derived.by((): ParamDef[] => {
 		const d = def;
-		const ids = d?.canvasParams;
-		if (!d || !ids?.length) return [];
+		if (!d) return [];
+		const pin = new Set(effectiveParamNodePins(gn.data, d));
 		const out: ParamDef[] = [];
-		for (const pid of ids) {
-			const p = d.params.find((x) => x.id === pid);
-			if (!p || p.binding !== 'uniform') continue;
-			if (p.glslType !== 'float' && p.glslType !== 'int') continue;
+		for (const p of d.params) {
+			if (!pin.has(p.id)) continue;
+			if (!isParamSliderDriver(p)) continue;
 			if (!isParamVisible(p, gn.data)) continue;
 			out.push(p);
 		}
 		return out;
 	});
 
+	const paramWireConnectedHandles = $derived.by(() => {
+		void store.edges;
+		const s = new Set<string>();
+		for (const e of store.edges) {
+			if (e.target !== id) continue;
+			const th = e.targetHandle;
+			if (typeof th === 'string' && th.startsWith('paramWire__')) s.add(th);
+		}
+		return s;
+	});
+
+	function isParamWireConnected(paramId: string): boolean {
+		return paramWireConnectedHandles.has(paramWirePortId(paramId));
+	}
+
 	function commitCanvasParam(p: ParamDef, raw: number) {
 		if (!patchParam) return;
 		const b = boundsFromParamDef(p);
 		const v = clampScalar(raw, b.min, b.max, p.glslType === 'int');
 		patchParam(id, p.id, v);
+	}
+
+	function commitBypass(p: ParamDef, bypassed: boolean) {
+		patchParamBypass?.(id, p.id, bypassed);
 	}
 
 	function tyClass(t: GlslType): string {
@@ -85,44 +122,8 @@
 					: undefined}>{nodeSubtitle}</div>
 		{/if}
 	</div>
-	{#if canvasParamDefs.length > 0 && patchParam}
-		<div class="canvas-params nodrag">
-			{#each canvasParamDefs as p (p.id)}
-				{@const b = boundsFromParamDef(p)}
-				{@const v = readParamNumber(gn.data, p, b)}
-				<label class="c-param nodrag">
-					<span class="c-lab" title="Param id: {p.id}">{p.label ?? p.id}</span>
-					<div class="c-slider-row">
-						<input
-							class="nodrag c-range"
-							type="range"
-							min={b.min}
-							max={b.max}
-							step={b.step}
-							value={v}
-							oninput={(e) =>
-								commitCanvasParam(p, parseFloat((e.currentTarget as HTMLInputElement).value))}
-						/>
-						<input
-							class="nodrag c-num"
-							type="number"
-							min={b.min}
-							max={b.max}
-							step={b.isInt ? 1 : 'any'}
-							value={v}
-							oninput={(e) => {
-								const x = (e.currentTarget as HTMLInputElement).valueAsNumber;
-								if (!Number.isFinite(x)) return;
-								commitCanvasParam(p, x);
-							}}
-						/>
-					</div>
-				</label>
-			{/each}
-		</div>
-	{/if}
 	<div class="body">
-		{#each def?.inputs ?? [] as inp (inp.id)}
+		{#each dataInputs as inp (inp.id)}
 			<div class="row in">
 				<ShaderPortHandle
 					handleType="target"
@@ -136,6 +137,79 @@
 				>
 			</div>
 		{/each}
+		{#if pinnedSliderParamDefs.length > 0 && patchParam}
+			<div class="param-pinned-wrap nodrag">
+				{#each pinnedSliderParamDefs as p (p.id)}
+					{@const b = boundsFromParamDef(p)}
+					{@const v = readParamNumber(gn.data, p, b)}
+					{@const wired = isParamWireConnected(p.id)}
+					{@const bypassed = isParamGraphBypassed(gn.data, p.id)}
+					{@const graphActive = wired && !bypassed}
+					{@const hid = paramWirePortId(p.id)}
+					<div
+						class="c-param-row nodrag"
+						class:c-param-wired={wired}
+						class:c-param-graph={graphActive}
+						class:c-param-bypass={wired && bypassed}
+					>
+						<div class="c-param-handle">
+							<ShaderPortHandle
+								handleType="target"
+								position={Position.Left}
+								handleId={hid}
+								extraClass="h glsl-float{portErr?.inputs.has(hid) ? ' h-port-err' : ''}"
+							/>
+						</div>
+						<div class="c-param-body">
+							<div class="c-param-head">
+								<span class="c-lab" title="Param id: {p.id}">{p.label ?? p.id}</span>
+								{#if wired && patchParamBypass}
+									<label class="c-bypass" title="When off, the graph wire drives this value">
+										<input
+											type="checkbox"
+											checked={!bypassed}
+											onchange={(e) =>
+												commitBypass(p, !(e.currentTarget as HTMLInputElement).checked)}
+										/>
+										Graph
+									</label>
+								{/if}
+							</div>
+							<div class="c-slider-row">
+								<input
+									class="nodrag c-range"
+									type="range"
+									min={b.min}
+									max={b.max}
+									step={b.step}
+									value={v}
+									disabled={graphActive}
+									oninput={(e) =>
+										commitCanvasParam(
+											p,
+											parseFloat((e.currentTarget as HTMLInputElement).value),
+										)}
+								/>
+								<input
+									class="nodrag c-num"
+									type="number"
+									min={b.min}
+									max={b.max}
+									step={b.isInt ? 1 : 'any'}
+									value={v}
+									disabled={graphActive}
+									oninput={(e) => {
+										const x = (e.currentTarget as HTMLInputElement).valueAsNumber;
+										if (!Number.isFinite(x)) return;
+										commitCanvasParam(p, x);
+									}}
+								/>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
 		{#each def?.outputs ?? [] as out (out.id)}
 			<div class="row out">
 				<span class="ty {tyClass(out.type)}" title="{out.type}{out.label ? ` · ${out.label}` : ''}"
@@ -155,8 +229,9 @@
 
 <style>
 	.shader-node {
-		min-width: 128px;
-		max-width: 280px;
+		min-width: 148px;
+		max-width: 300px;
+		overflow: visible;
 		background: #161a22;
 		border: 1px solid #2c3340;
 		border-radius: 6px;
@@ -208,26 +283,89 @@
 		color: #c8dbf8;
 		opacity: 0.95;
 	}
-	.canvas-params {
-		padding: 4px 6px 6px;
+	.param-pinned-wrap {
+		margin: 2px 0 4px;
+		padding: 4px 4px 6px 2px;
+		border-top: 1px solid #252b36;
 		border-bottom: 1px solid #252b36;
 		background: #141820;
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 8px;
 	}
-	.c-param {
+	.c-param-row {
+		position: relative;
 		display: flex;
-		flex-direction: column;
-		gap: 1px;
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
 		margin: 0;
 		cursor: default;
+		padding: 2px 0;
+		border-radius: 4px;
+		min-height: 28px;
+	}
+	/* XYFlow: left/right handles use top:50% — need a positioned ancestor per row or they stack on the node. */
+	.row.in,
+	.row.out {
+		position: relative;
+	}
+	.c-param-handle {
+		position: relative;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		align-self: stretch;
+		min-width: 12px;
+		padding-left: 1px;
+	}
+	.c-param-body {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.c-param-wired:not(.c-param-graph) {
+		opacity: 0.88;
+	}
+	.c-param-graph {
+		box-shadow: inset 0 0 0 1px rgba(125, 211, 160, 0.35);
+		background: rgba(125, 211, 160, 0.06);
+	}
+	.c-param-bypass {
+		opacity: 0.75;
+	}
+	.c-param-head {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+		min-height: 14px;
+	}
+	.c-bypass {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		margin-left: auto;
+		font-size: 8px;
+		opacity: 0.75;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+	.c-bypass input {
+		margin: 0;
 	}
 	.c-lab {
 		font-size: 8px;
 		font-family: ui-monospace, monospace;
 		opacity: 0.65;
 		text-transform: none;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex: 1;
 	}
 	.c-slider-row {
 		display: flex;
@@ -252,6 +390,10 @@
 		border: 1px solid #333842;
 		background: #12151a;
 		color: #e4e7ec;
+	}
+	.c-range:disabled,
+	.c-num:disabled {
+		opacity: 0.45;
 	}
 	.body {
 		padding: 4px 6px 6px;

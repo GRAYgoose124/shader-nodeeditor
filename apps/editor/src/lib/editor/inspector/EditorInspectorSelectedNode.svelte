@@ -8,9 +8,15 @@
 	} from '@shadertoy/compiler';
 	import {
 		defaultParamAnimationSpec,
+		effectiveParamNodePins,
 		isParamAnimatable,
+		isParamGraphBypassed,
+		isParamSliderDriver,
 		isParamVisible,
 		paramAnimKey,
+		paramWirePortId,
+		PARAM_GRAPH_BYPASS_DATA_KEY,
+		PARAM_NODE_PINS_DATA_KEY,
 		resolveParamChoice,
 	} from '@shadertoy/compiler';
 	import type { Node } from '@xyflow/svelte';
@@ -20,6 +26,7 @@
 		clampScalar,
 		readParamNumber,
 	} from '$lib/editor/paramControls.js';
+	import { graphEdgesStore } from '$lib/editor/graphSync.js';
 
 	let {
 		selectedFlowNode,
@@ -63,6 +70,34 @@
 				)
 			: [],
 	);
+
+	const graphEdges = $derived($graphEdgesStore);
+
+	function toggleParamGraphPin(paramId: string, on: boolean) {
+		patchSelectedGraphNode((g) => {
+			const d = selectedDef;
+			const cur = new Set(effectiveParamNodePins(g.data, d));
+			if (on) cur.add(paramId);
+			else cur.delete(paramId);
+			g.data = { ...g.data, [PARAM_NODE_PINS_DATA_KEY]: [...cur] };
+		});
+	}
+
+	function patchParamGraphBypass(paramId: string, bypassed: boolean) {
+		patchSelectedGraphNode((g) => {
+			const prev = g.data[PARAM_GRAPH_BYPASS_DATA_KEY];
+			const next: Record<string, boolean> =
+				prev && typeof prev === 'object' ? { ...(prev as Record<string, boolean>) } : {};
+			if (bypassed) next[paramId] = true;
+			else delete next[paramId];
+			if (Object.keys(next).length === 0) {
+				const { [PARAM_GRAPH_BYPASS_DATA_KEY]: _b, ...rest } = g.data as Record<string, unknown>;
+				g.data = rest as GraphNode['data'];
+			} else {
+				g.data = { ...g.data, [PARAM_GRAPH_BYPASS_DATA_KEY]: next };
+			}
+		});
+	}
 </script>
 
 <h2>Inspector</h2>
@@ -118,6 +153,45 @@
 				{:else}
 					{@const b = boundsFromParamDef(p)}
 					{@const val = readParamNumber(gn.data, p, b)}
+					{@const pinIds = effectiveParamNodePins(gn.data, selectedDef)}
+					{@const onGraph = pinIds.includes(p.id)}
+					{@const wired =
+						isParamSliderDriver(p) &&
+						graphEdges.some(
+							(e) => e.target === gn.id && e.targetHandle === paramWirePortId(p.id),
+						)}
+					{@const bypassed = isParamGraphBypassed(gn.data, p.id)}
+					{@const graphDriveActive = wired && !bypassed}
+					{#if isParamSliderDriver(p)}
+						<label class="pin-on-graph">
+							<input
+								type="checkbox"
+								checked={onGraph}
+								onchange={(e) =>
+									toggleParamGraphPin(p.id, (e.currentTarget as HTMLInputElement).checked)}
+							/>
+							Show on graph (slider + port)
+						</label>
+					{/if}
+					{#if isParamSliderDriver(p)}
+						<p class="graph-hint muted small">
+							{#if wired && !onGraph}
+								An edge uses <code>{paramWirePortId(p.id)}</code> — enable <strong>Show on graph</strong> to
+								see the handle, or remove the wire.
+							{:else if graphDriveActive}
+								Graph input is driving this value (animate ignored).
+							{:else if wired}
+								Bypass on — slider and animate apply. Check <strong>Graph</strong> on the node (or below)
+								to use the wire.
+							{:else if onGraph}
+								Port is on the node's left, vertically aligned with this slider row. Wire a float into
+								it to drive the shader.
+							{:else}
+								Enable <strong>Show on graph</strong> to add a slider and optional graph input on the node.
+								(Node types with <code>canvasParams</code> show those by default until you override.)
+							{/if}
+						</p>
+					{/if}
 					<div class="param-slider-row">
 						<input
 							type="range"
@@ -125,6 +199,7 @@
 							max={b.max}
 							step={b.step}
 							value={val}
+							disabled={graphDriveActive}
 							oninput={(e) =>
 								commitInspectorGraphParam(
 									p,
@@ -139,6 +214,7 @@
 							step={b.isInt ? 1 : 'any'}
 							value={val}
 							title="Exact value (clamped to min/max)"
+							disabled={graphDriveActive}
 							oninput={(e) => {
 								const x = (e.currentTarget as HTMLInputElement).valueAsNumber;
 								if (!Number.isFinite(x)) return;
@@ -146,11 +222,26 @@
 							}}
 						/>
 					</div>
-					{#if isParamAnimatable(p)}
+					{#if isParamSliderDriver(p) && wired && onGraph}
 						<label class="anim-toggle">
 							<input
 								type="checkbox"
+								checked={!bypassed}
+								onchange={(e) =>
+									patchParamGraphBypass(
+										p.id,
+										!(e.currentTarget as HTMLInputElement).checked,
+									)}
+							/>
+							Use graph wire when checked (off = bypass, use slider / animate)
+						</label>
+					{/if}
+					{#if isParamAnimatable(p)}
+						<label class="anim-toggle" class:anim-muted={graphDriveActive}>
+							<input
+								type="checkbox"
 								checked={isAnim}
+								disabled={graphDriveActive}
 								onchange={() => {
 									if (isAnim) {
 										patchParamAnimations((d) => {
@@ -164,6 +255,9 @@
 								}}
 							/>
 							Animate
+							{#if graphDriveActive}
+								<span class="muted small"> (inactive while graph drives)</span>
+							{/if}
 						</label>
 					{/if}
 				{/if}
@@ -241,6 +335,29 @@
 		margin-top: 12px;
 		padding-top: 10px;
 		border-top: 1px solid #2a3038;
+	}
+	.pin-on-graph {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 10px;
+		margin: 0 0 4px;
+		cursor: pointer;
+		user-select: none;
+		opacity: 0.92;
+	}
+	.pin-on-graph input {
+		margin: 0;
+	}
+	.graph-hint {
+		margin: 0 0 4px;
+		line-height: 1.35;
+	}
+	.small {
+		font-size: 10px;
+	}
+	.anim-muted {
+		opacity: 0.55;
 	}
 	.muted {
 		opacity: 0.55;

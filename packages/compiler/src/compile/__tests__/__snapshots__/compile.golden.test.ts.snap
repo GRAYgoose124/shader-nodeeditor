@@ -1,0 +1,1128 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileGraph (golden GLSL snapshots) > minimal image pass fragmentSource 1`] = `
+"#version 300 es
+precision highp float;
+uniform vec3 iResolution;
+uniform float iTime;
+uniform vec4 iMouse;
+uniform int iFrame;
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
+uniform sampler2D iChannel2;
+uniform sampler2D iChannel3;
+uniform float u_audioLevel;
+uniform float u_audioBandLow;
+uniform float u_audioBandMid;
+uniform float u_audioBandHigh;
+in vec2 v_uv;
+out vec4 fragColor;
+
+float smin(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float smin_exp(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float res = exp(-k * a) + exp(-k * b);
+  return -log(max(res, 1e-20)) / k;
+}
+
+float iq_hash31(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float smax(float a, float b, float k) {
+  return -smin(-a, -b, k);
+}
+
+float smax_exp(float a, float b, float k) {
+  return -smin_exp(-a, -b, k);
+}
+
+float iq_vnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = iq_hash31(i + vec3(0.0, 0.0, 0.0));
+  float n100 = iq_hash31(i + vec3(1.0, 0.0, 0.0));
+  float n010 = iq_hash31(i + vec3(0.0, 1.0, 0.0));
+  float n110 = iq_hash31(i + vec3(1.0, 1.0, 0.0));
+  float n001 = iq_hash31(i + vec3(0.0, 0.0, 1.0));
+  float n101 = iq_hash31(i + vec3(1.0, 0.0, 1.0));
+  float n011 = iq_hash31(i + vec3(0.0, 1.0, 1.0));
+  float n111 = iq_hash31(i + vec3(1.0, 1.0, 1.0));
+  float nx00 = mix(n000, n100, f.x);
+  float nx10 = mix(n010, n110, f.x);
+  float nx01 = mix(n001, n101, f.x);
+  float nx11 = mix(n011, n111, f.x);
+  float nxy0 = mix(nx00, nx10, f.y);
+  float nxy1 = mix(nx01, nx11, f.y);
+  return mix(nxy0, nxy1, f.z);
+}
+
+float iq_fbm3(vec3 x, float lac, float gn) {
+  float a = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 5; i++) {
+    a += amp * iq_vnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return a;
+}
+
+vec2 iq_voronoi3_f12(vec3 x) {
+  vec3 n = floor(x);
+  vec3 f = fract(x);
+  vec2 mr = vec2(8.0, 8.0);
+  for (int kk = -1; kk <= 1; kk++)
+  for (int jj = -1; jj <= 1; jj++)
+  for (int ii = -1; ii <= 1; ii++) {
+    vec3 g = vec3(float(ii), float(jj), float(kk));
+    vec3 cell = n + g;
+    vec3 o = vec3(
+      iq_hash31(cell),
+      iq_hash31(cell + vec3(17.0, 31.0, 7.0)),
+      iq_hash31(cell + vec3(43.0, 11.0, 23.0))) * 0.5 + 0.25;
+    vec3 r = g + o - f;
+    float d = dot(r, r);
+    if (d < mr.x) { mr.y = mr.x; mr.x = d; }
+    else if (d < mr.y) mr.y = d;
+  }
+  return sqrt(mr);
+}
+
+vec3 iq_rand_grad3(vec3 i) {
+  return normalize(vec3(
+    iq_hash31(i + vec3(0.0, 0.0, 0.0)),
+    iq_hash31(i + vec3(31.0, 17.0, 7.0)),
+    iq_hash31(i + vec3(11.0, 23.0, 29.0))) * 2.0 - 1.0);
+}
+
+float iq_gnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  float n000 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 0.0)), f - vec3(0.0, 0.0, 0.0));
+  float n100 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 0.0)), f - vec3(1.0, 0.0, 0.0));
+  float n010 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 0.0)), f - vec3(0.0, 1.0, 0.0));
+  float n110 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 0.0)), f - vec3(1.0, 1.0, 0.0));
+  float n001 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 1.0)), f - vec3(0.0, 0.0, 1.0));
+  float n101 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 1.0)), f - vec3(1.0, 0.0, 1.0));
+  float n011 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 1.0)), f - vec3(0.0, 1.0, 1.0));
+  float n111 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 1.0)), f - vec3(1.0, 1.0, 1.0));
+  return mix(
+    mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+    mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+    u.z);
+}
+
+float iq_fbm3_g(vec3 x, float lac, float gn) {
+  float s = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 4; i++) {
+    s += amp * iq_gnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return s;
+}
+
+vec3 iq_fbm3_grad_fd(vec3 x, float lac, float gn, float e) {
+  float ex = iq_fbm3(x + vec3(e, 0.0, 0.0), lac, gn) - iq_fbm3(x - vec3(e, 0.0, 0.0), lac, gn);
+  float ey = iq_fbm3(x + vec3(0.0, e, 0.0), lac, gn) - iq_fbm3(x - vec3(0.0, e, 0.0), lac, gn);
+  float ez = iq_fbm3(x + vec3(0.0, 0.0, e), lac, gn) - iq_fbm3(x - vec3(0.0, 0.0, e), lac, gn);
+  return vec3(ex, ey, ez) / max(2.0 * e, 1e-6);
+}
+
+uniform float u_c1_freq;
+uniform float u_v1_a;
+
+void main() {
+  // node: t1
+  float g_t1_t = iTime;
+  // node: c1
+  vec3 g_c1_rgb = 0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.189) + g_t1_t * float(u_c1_freq));
+  // node: v1
+  vec4 g_v1_col = vec4(g_c1_rgb, float(u_v1_a));
+  // node: o1
+  fragColor = g_v1_col;
+}
+"
+`;
+
+exports[`compileGraph (golden GLSL snapshots) > raymarch_scene (sphere + GI on) fragmentSource 1`] = `
+"#version 300 es
+precision highp float;
+uniform vec3 iResolution;
+uniform float iTime;
+uniform vec4 iMouse;
+uniform int iFrame;
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
+uniform sampler2D iChannel2;
+uniform sampler2D iChannel3;
+uniform float u_audioLevel;
+uniform float u_audioBandLow;
+uniform float u_audioBandMid;
+uniform float u_audioBandHigh;
+in vec2 v_uv;
+out vec4 fragColor;
+
+float smin(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float smin_exp(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float res = exp(-k * a) + exp(-k * b);
+  return -log(max(res, 1e-20)) / k;
+}
+
+float iq_hash31(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float smax(float a, float b, float k) {
+  return -smin(-a, -b, k);
+}
+
+float smax_exp(float a, float b, float k) {
+  return -smin_exp(-a, -b, k);
+}
+
+float iq_vnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = iq_hash31(i + vec3(0.0, 0.0, 0.0));
+  float n100 = iq_hash31(i + vec3(1.0, 0.0, 0.0));
+  float n010 = iq_hash31(i + vec3(0.0, 1.0, 0.0));
+  float n110 = iq_hash31(i + vec3(1.0, 1.0, 0.0));
+  float n001 = iq_hash31(i + vec3(0.0, 0.0, 1.0));
+  float n101 = iq_hash31(i + vec3(1.0, 0.0, 1.0));
+  float n011 = iq_hash31(i + vec3(0.0, 1.0, 1.0));
+  float n111 = iq_hash31(i + vec3(1.0, 1.0, 1.0));
+  float nx00 = mix(n000, n100, f.x);
+  float nx10 = mix(n010, n110, f.x);
+  float nx01 = mix(n001, n101, f.x);
+  float nx11 = mix(n011, n111, f.x);
+  float nxy0 = mix(nx00, nx10, f.y);
+  float nxy1 = mix(nx01, nx11, f.y);
+  return mix(nxy0, nxy1, f.z);
+}
+
+float iq_fbm3(vec3 x, float lac, float gn) {
+  float a = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 5; i++) {
+    a += amp * iq_vnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return a;
+}
+
+vec2 iq_voronoi3_f12(vec3 x) {
+  vec3 n = floor(x);
+  vec3 f = fract(x);
+  vec2 mr = vec2(8.0, 8.0);
+  for (int kk = -1; kk <= 1; kk++)
+  for (int jj = -1; jj <= 1; jj++)
+  for (int ii = -1; ii <= 1; ii++) {
+    vec3 g = vec3(float(ii), float(jj), float(kk));
+    vec3 cell = n + g;
+    vec3 o = vec3(
+      iq_hash31(cell),
+      iq_hash31(cell + vec3(17.0, 31.0, 7.0)),
+      iq_hash31(cell + vec3(43.0, 11.0, 23.0))) * 0.5 + 0.25;
+    vec3 r = g + o - f;
+    float d = dot(r, r);
+    if (d < mr.x) { mr.y = mr.x; mr.x = d; }
+    else if (d < mr.y) mr.y = d;
+  }
+  return sqrt(mr);
+}
+
+vec3 iq_rand_grad3(vec3 i) {
+  return normalize(vec3(
+    iq_hash31(i + vec3(0.0, 0.0, 0.0)),
+    iq_hash31(i + vec3(31.0, 17.0, 7.0)),
+    iq_hash31(i + vec3(11.0, 23.0, 29.0))) * 2.0 - 1.0);
+}
+
+float iq_gnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  float n000 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 0.0)), f - vec3(0.0, 0.0, 0.0));
+  float n100 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 0.0)), f - vec3(1.0, 0.0, 0.0));
+  float n010 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 0.0)), f - vec3(0.0, 1.0, 0.0));
+  float n110 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 0.0)), f - vec3(1.0, 1.0, 0.0));
+  float n001 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 1.0)), f - vec3(0.0, 0.0, 1.0));
+  float n101 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 1.0)), f - vec3(1.0, 0.0, 1.0));
+  float n011 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 1.0)), f - vec3(0.0, 1.0, 1.0));
+  float n111 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 1.0)), f - vec3(1.0, 1.0, 1.0));
+  return mix(
+    mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+    mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+    u.z);
+}
+
+float iq_fbm3_g(vec3 x, float lac, float gn) {
+  float s = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 4; i++) {
+    s += amp * iq_gnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return s;
+}
+
+vec3 iq_fbm3_grad_fd(vec3 x, float lac, float gn, float e) {
+  float ex = iq_fbm3(x + vec3(e, 0.0, 0.0), lac, gn) - iq_fbm3(x - vec3(e, 0.0, 0.0), lac, gn);
+  float ey = iq_fbm3(x + vec3(0.0, e, 0.0), lac, gn) - iq_fbm3(x - vec3(0.0, e, 0.0), lac, gn);
+  float ez = iq_fbm3(x + vec3(0.0, 0.0, e), lac, gn) - iq_fbm3(x - vec3(0.0, 0.0, e), lac, gn);
+  return vec3(ex, ey, ez) / max(2.0 * e, 1e-6);
+}
+
+uniform float u_s1_r;
+uniform float u_r1_fov;
+uniform float u_r1_camZ;
+uniform float u_m1_maxSteps;
+uniform float u_m1_maxDist;
+uniform float u_m1_eps;
+uniform float u_m1_relHitEps;
+uniform float u_m1_recoverBand;
+uniform float u_m1_nEpsRel;
+uniform float u_m1_ambR;
+uniform float u_m1_ambG;
+uniform float u_m1_ambB;
+uniform float u_m1_iqNormal;
+uniform float u_m1_nTetra;
+uniform float u_m1_nEps;
+uniform float u_m1_curvAmp;
+uniform float u_m1_curvEps;
+uniform float u_m1_skyStr;
+uniform float u_m1_skySteps;
+uniform float u_m1_skyBias;
+uniform float u_m1_skyMaxT;
+uniform float u_m1_skyTopR;
+uniform float u_m1_skyTopG;
+uniform float u_m1_skyTopB;
+uniform float u_m1_skyBotR;
+uniform float u_m1_skyBotG;
+uniform float u_m1_skyBotB;
+uniform float u_m1_softShadow;
+uniform float u_m1_shadowK;
+uniform float u_m1_shadowMax;
+uniform float u_m1_shadowStart;
+uniform float u_m1_shadowHitEps;
+uniform float u_m1_shadowNormalBias;
+uniform float u_m1_shadowLightBias;
+uniform float u_m1_shadowStepRelax;
+uniform float u_m1_shadowStepMin;
+uniform float u_m1_shadowStepMax;
+uniform float u_m1_aoOn;
+uniform float u_m1_aoStep;
+uniform float u_m1_aoAmp;
+uniform float u_m1_minStep;
+uniform float u_m1_stepScale;
+uniform float u_m1_distTrust;
+uniform float u_m1_maxStepAbs;
+uniform float u_m1_maxStepRelT;
+uniform float u_m1_lx;
+uniform float u_m1_ly;
+uniform float u_m1_lz;
+uniform float u_m1_specOn;
+uniform float u_m1_specPow;
+uniform float u_m1_specStr;
+uniform float u_m1_palMix;
+uniform float u_m1_palA;
+uniform float u_m1_palB;
+uniform float u_m1_palC;
+uniform float u_m1_fogOn;
+uniform float u_m1_fogDensity;
+uniform float u_m1_fogR;
+uniform float u_m1_fogG;
+uniform float u_m1_fogB;
+uniform float u_m1_reflStr;
+uniform float u_m1_reflSteps;
+uniform float u_m1_reflBias;
+uniform float u_m1_reflMaxDist;
+uniform float u_m1_reflStepScale;
+uniform float u_m1_reflFresnel;
+uniform float u_m1_giStr;
+uniform float u_m1_giRough;
+uniform float u_m1_giSteps;
+uniform float u_m1_giMaxDist;
+uniform float u_m1_giBias;
+uniform float u_m1_giSecondBounce;
+uniform float u_m1_giSteps2;
+uniform float u_m1_giSecondStr;
+uniform float u_m1_surfTexOn;
+uniform float u_m1_surfTexScale;
+uniform float u_m1_surfTexBlend;
+
+vec3 scene_mat_image(vec3 p) { return vec3(1.0); }
+float scene_sdf_image(vec3 p) {
+  // node: s1
+  float g_s1_d = length(p) - float(u_s1_r);
+  // node: k1
+  return g_s1_d;
+}
+
+void main() {
+  // node: u1
+  vec2 g_u1_uv = v_uv;
+  // node: r1 — https://iquilezles.org/articles/raymarchingdf/
+  vec2 ndc_r1 = g_u1_uv * 2.0 - 1.0;
+  float asp_r1 = iResolution.x / max(iResolution.y, 1.0);
+  ndc_r1.x *= asp_r1;
+  float fov_r1 = radians(float(u_r1_fov));
+  vec3 g_r1_ro = vec3(0.0, 0.0, float(u_r1_camZ));
+  vec3 g_r1_rd = normalize(vec3(ndc_r1 * tan(fov_r1 * 0.5), -1.0));
+  // node: m1 — raymarch / lighting / https://iquilezles.org/articles/raymarchingdf/ https://iquilezles.org/articles/rmimprovement/ https://iquilezles.org/articles/palettes/ https://iquilezles.org/articles/normalsSDF/
+  vec3 rmo_m1 = g_r1_ro;
+  vec3 rmd_m1 = normalize(g_r1_rd);
+  float tmc_m1 = 0.0;
+  vec3 amb_m1 = vec3(float(u_m1_ambR), float(u_m1_ambG), float(u_m1_ambB));
+  vec3 clm_m1 = amb_m1;
+  vec3 ldir_m1 = vec3(float(u_m1_lx), float(u_m1_ly), float(u_m1_lz));
+  ldir_m1 = ldir_m1 / max(length(ldir_m1), 1e-4);
+  float hitMc_m1 = 0.0;
+  float dLst_m1 = 1e9;
+  float dtLst_m1 = 0.0;
+  for (int imc_m1 = 0; imc_m1 < 512; imc_m1++) {
+    if (float(imc_m1) >= float(u_m1_maxSteps)) break;
+    vec3 pmc_m1 = rmo_m1 + tmc_m1 * rmd_m1;
+    float dmc_m1 = scene_sdf_image(pmc_m1);
+    float hitEpsP_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+    if (dmc_m1 < hitEpsP_m1) {
+      hitMc_m1 = 1.0;
+
+
+      float nEpsU_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(tmc_m1, 1e-4));
+      vec3 nmc_m1;
+      if (float(u_m1_nTetra) > 0.5) {
+        vec2 te_m1 = vec2(1.0, -1.0) * 0.57735027 * nEpsU_m1;
+        nmc_m1 = normalize(
+          te_m1.xyy * scene_sdf_image(pmc_m1 + te_m1.xyy) +
+          te_m1.yyx * scene_sdf_image(pmc_m1 + te_m1.yyx) +
+          te_m1.yxy * scene_sdf_image(pmc_m1 + te_m1.yxy) +
+          te_m1.xxx * scene_sdf_image(pmc_m1 + te_m1.xxx));
+      } else if (float(u_m1_iqNormal) > 0.5) {
+        vec2 ve_m1 = vec2(nEpsU_m1, 0.0);
+        nmc_m1 = normalize(vec3(
+          scene_sdf_image(pmc_m1 + ve_m1.xyy) - scene_sdf_image(pmc_m1 - ve_m1.xyy),
+          scene_sdf_image(pmc_m1 + ve_m1.yxy) - scene_sdf_image(pmc_m1 - ve_m1.yxy),
+          scene_sdf_image(pmc_m1 + ve_m1.yyx) - scene_sdf_image(pmc_m1 - ve_m1.yyx)));
+      } else {
+        nmc_m1 = normalize(pmc_m1);
+      }
+
+      float df_m1 = max(dot(nmc_m1, ldir_m1), 0.0);
+      float sha_m1 = 1.0;
+      if (float(u_m1_softShadow) > 0.5) {
+        vec3 shRo_m1 = pmc_m1 + nmc_m1 * float(u_m1_shadowNormalBias) + ldir_m1 * float(u_m1_shadowLightBias);
+        float tsh_m1 = float(u_m1_shadowStart);
+        float shEps_m1 = float(u_m1_shadowHitEps);
+        float shRelax_m1 = float(u_m1_shadowStepRelax) * float(u_m1_distTrust);
+        for (int ish_m1 = 0; ish_m1 < 40; ish_m1++) {
+          float dh_m1 = scene_sdf_image(shRo_m1 + ldir_m1 * tsh_m1);
+          float shShell_m1 = shEps_m1 * (3.0 + 0.06 * tsh_m1);
+          sha_m1 = min(sha_m1, smoothstep(0.0, shShell_m1, dh_m1));
+          sha_m1 = min(sha_m1, float(u_m1_shadowK) * max(dh_m1, 0.0) / max(tsh_m1, 1e-4));
+          tsh_m1 += clamp(dh_m1 * shRelax_m1, float(u_m1_shadowStepMin), float(u_m1_shadowStepMax));
+          if (tsh_m1 > float(u_m1_shadowMax)) break;
+          if (sha_m1 < 0.001) break;
+        }
+      }
+      float occ_m1 = 1.0;
+      if (float(u_m1_aoOn) > 0.5) {
+        float sca_m1 = 1.0;
+        float tao_m1 = float(u_m1_aoStep);
+        for (int iao_m1 = 0; iao_m1 < 5; iao_m1++) {
+          float dao_m1 = scene_sdf_image(pmc_m1 + nmc_m1 * tao_m1);
+          sca_m1 = min(sca_m1, dao_m1 / max(tao_m1, 1e-4));
+          tao_m1 += float(u_m1_aoStep);
+        }
+        occ_m1 = clamp(1.0 - float(u_m1_aoAmp) * (1.0 - sca_m1), 0.0, 1.0);
+      }
+      float tsOn_m1 = float(u_m1_surfTexOn);
+      float tsu_m1 = float(u_m1_surfTexScale);
+      vec3 texRaw_m1;
+      if (float(0.0) < 0.5) {
+        vec3 an_m1 = abs(nmc_m1);
+        vec3 nw_m1 = an_m1 / max(dot(an_m1, vec3(1.0)), 1e-4);
+        // Always call texture() (do not gate on surfTexOn): some drivers strip samplers only used inside uniform branches.
+        vec3 samX_m1 = texture(iChannel0, pmc_m1.yz * tsu_m1).rgb;
+        vec3 samY_m1 = texture(iChannel0, pmc_m1.zx * tsu_m1).rgb;
+        vec3 samZ_m1 = texture(iChannel0, pmc_m1.xy * tsu_m1).rgb;
+        texRaw_m1 = samX_m1 * nw_m1.x + samY_m1 * nw_m1.y + samZ_m1 * nw_m1.z;
+      } else {
+        vec2 tcyl_m1 = vec2(atan(pmc_m1.x, pmc_m1.z) * 0.159154943, pmc_m1.y) * tsu_m1;
+        texRaw_m1 = texture(iChannel0, tcyl_m1).rgb;
+      }
+      vec3 texMix_m1 = mix(vec3(1.0), texRaw_m1, clamp(float(u_m1_surfTexBlend), 0.0, 1.0) * step(0.5, tsOn_m1));
+
+      vec3 base_m1 = vec3(0.06, 0.07, 0.1);
+      vec3 sun_m1 = vec3(0.85, 0.82, 0.78);
+      vec3 pal_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + df_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+      vec3 sunMix_m1 = mix(sun_m1, pal_m1, float(u_m1_palMix));
+      vec3 lit_m1 = (base_m1 + df_m1 * sha_m1 * sunMix_m1) * texMix_m1;
+      if (float(u_m1_specOn) > 0.5) {
+        vec3 V_m1 = -rmd_m1;
+        vec3 H_m1 = normalize(ldir_m1 + V_m1);
+        lit_m1 += float(u_m1_specStr) * pow(max(dot(nmc_m1, H_m1), 0.0), float(u_m1_specPow)) * sunMix_m1;
+      }
+      if (float(u_m1_curvAmp) > 0.001) {
+        float cu_m1 = (scene_sdf_image(pmc_m1 + nmc_m1 * float(u_m1_curvEps)) + scene_sdf_image(pmc_m1 - nmc_m1 * float(u_m1_curvEps))) / max(float(u_m1_curvEps), 1e-5);
+        lit_m1 *= clamp(1.0 - float(u_m1_curvAmp) * max(cu_m1, 0.0), 0.25, 1.0);
+      }
+      clm_m1 = amb_m1 + occ_m1 * lit_m1;
+
+
+      if (float(1.0) > 0.5 && float(u_m1_giStr) > 0.001) {
+        vec3 giAcc_m1 = vec3(0.0);
+        vec3 gix_m1 = cross(nmc_m1, vec3(0.901, 0.302, 0.187));
+        gix_m1 = gix_m1 / max(length(gix_m1), 1e-4);
+        vec3 giy_m1 = normalize(cross(nmc_m1, gix_m1));
+        gix_m1 = normalize(cross(giy_m1, nmc_m1));
+        for (int igi_m1 = 0; igi_m1 < 3; igi_m1++) {
+          float ga_m1 = float(igi_m1) * 2.0943951 + sin(gl_FragCoord.x * 0.07 + float(igi_m1) * 1.7) * 0.73;
+          float gb_m1 = float(igi_m1) * 1.0471976 + cos(gl_FragCoord.y * 0.09 + float(igi_m1) * 2.3) * 0.61;
+          vec3 wi0_m1 = normalize(gix_m1 * cos(ga_m1) * 0.62 + giy_m1 * sin(ga_m1) * 0.62 + nmc_m1 * max(0.35, abs(sin(gb_m1))));
+          vec3 wi_m1 = normalize(mix(wi0_m1, nmc_m1, clamp(float(u_m1_giRough), 0.0, 1.0)));
+          float ndwi_m1 = max(dot(nmc_m1, wi_m1), 0.0);
+          if (ndwi_m1 < 0.02) continue;
+          float tgi_m1 = float(u_m1_giBias);
+          vec3 pgi0_m1 = pmc_m1 + nmc_m1 * float(u_m1_giBias);
+          vec3 gicol_m1 = vec3(0.0);
+          for (int jgi_m1 = 0; jgi_m1 < 48; jgi_m1++) {
+            if (float(jgi_m1) >= float(u_m1_giSteps)) break;
+            vec3 pg_m1 = pgi0_m1 + wi_m1 * tgi_m1;
+            float dg_m1 = scene_sdf_image(pg_m1);
+            float heG_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tgi_m1, 1e-4));
+            if (dg_m1 < heG_m1) {
+              float nEpsUG_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(tgi_m1, 1e-4));
+              vec3 nnG_m1;
+              if (float(u_m1_nTetra) > 0.5) {
+                vec2 teG_m1 = vec2(1.0, -1.0) * 0.57735027 * nEpsUG_m1;
+                nnG_m1 = normalize(
+                  teG_m1.xyy * scene_sdf_image(pg_m1 + teG_m1.xyy) +
+                  teG_m1.yyx * scene_sdf_image(pg_m1 + teG_m1.yyx) +
+                  teG_m1.yxy * scene_sdf_image(pg_m1 + teG_m1.yxy) +
+                  teG_m1.xxx * scene_sdf_image(pg_m1 + teG_m1.xxx));
+              } else if (float(u_m1_iqNormal) > 0.5) {
+                vec2 veG_m1 = vec2(nEpsUG_m1, 0.0);
+                nnG_m1 = normalize(vec3(
+                  scene_sdf_image(pg_m1 + veG_m1.xyy) - scene_sdf_image(pg_m1 - veG_m1.xyy),
+                  scene_sdf_image(pg_m1 + veG_m1.yxy) - scene_sdf_image(pg_m1 - veG_m1.yxy),
+                  scene_sdf_image(pg_m1 + veG_m1.yyx) - scene_sdf_image(pg_m1 - veG_m1.yyx)));
+              } else {
+                nnG_m1 = normalize(pg_m1);
+              }
+              float dfG_m1 = max(dot(nnG_m1, ldir_m1), 0.0);
+              float shaG_m1 = 1.0;
+              if (float(u_m1_softShadow) > 0.5) {
+                vec3 shRoG_m1 = pg_m1 + nnG_m1 * float(u_m1_shadowNormalBias) + ldir_m1 * float(u_m1_shadowLightBias);
+                float tshG_m1 = float(u_m1_shadowStart);
+                float shEpsG_m1 = float(u_m1_shadowHitEps);
+                float shRelaxG_m1 = float(u_m1_shadowStepRelax) * float(u_m1_distTrust);
+                for (int ishG_m1 = 0; ishG_m1 < 40; ishG_m1++) {
+                  float dhG_m1 = scene_sdf_image(shRoG_m1 + ldir_m1 * tshG_m1);
+                  float shShellG_m1 = shEpsG_m1 * (3.0 + 0.06 * tshG_m1);
+                  shaG_m1 = min(shaG_m1, smoothstep(0.0, shShellG_m1, dhG_m1));
+                  shaG_m1 = min(shaG_m1, float(u_m1_shadowK) * max(dhG_m1, 0.0) / max(tshG_m1, 1e-4));
+                  tshG_m1 += clamp(dhG_m1 * shRelaxG_m1, float(u_m1_shadowStepMin), float(u_m1_shadowStepMax));
+                  if (tshG_m1 > float(u_m1_shadowMax)) break;
+                  if (shaG_m1 < 0.001) break;
+                }
+              }
+              vec3 texRawG_m1;
+              if (float(0.0) < 0.5) {
+                vec3 anG_m1 = abs(nnG_m1);
+                vec3 nwG_m1 = anG_m1 / max(dot(anG_m1, vec3(1.0)), 1e-4);
+                vec3 samXG_m1 = texture(iChannel0, pg_m1.yz * tsu_m1).rgb;
+                vec3 samYG_m1 = texture(iChannel0, pg_m1.zx * tsu_m1).rgb;
+                vec3 samZG_m1 = texture(iChannel0, pg_m1.xy * tsu_m1).rgb;
+                texRawG_m1 = samXG_m1 * nwG_m1.x + samYG_m1 * nwG_m1.y + samZG_m1 * nwG_m1.z;
+              } else {
+                vec2 tcylG_m1 = vec2(atan(pg_m1.x, pg_m1.z) * 0.159154943, pg_m1.y) * tsu_m1;
+                texRawG_m1 = texture(iChannel0, tcylG_m1).rgb;
+              }
+              vec3 texMixG_m1 = mix(vec3(1.0), texRawG_m1, clamp(float(u_m1_surfTexBlend), 0.0, 1.0) * step(0.5, tsOn_m1));
+              vec3 palG_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + dfG_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+              vec3 sunMixG_m1 = mix(sun_m1, palG_m1, float(u_m1_palMix));
+              gicol_m1 = (amb_m1 + dfG_m1 * shaG_m1 * sunMixG_m1) * texMixG_m1;
+              if (float(u_m1_giSecondBounce) > 0.5) {
+                vec3 wi2_m1 = normalize(nnG_m1 + gix_m1 * 0.41 + giy_m1 * 0.27);
+                float t2_m1 = float(u_m1_giBias);
+                vec3 p2b_m1 = pg_m1 + nnG_m1 * float(u_m1_giBias);
+                for (int jg2_m1 = 0; jg2_m1 < 8; jg2_m1++) {
+                  if (float(jg2_m1) >= float(u_m1_giSteps2)) break;
+                  vec3 p2_m1 = p2b_m1 + wi2_m1 * t2_m1;
+                  float d2_m1 = scene_sdf_image(p2_m1);
+                  float he2_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(t2_m1, 1e-4));
+                  if (d2_m1 < he2_m1) {
+                    float nE2_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(t2_m1, 1e-4));
+                    vec3 nn2_m1;
+                    if (float(u_m1_iqNormal) > 0.5) {
+                      vec2 ve2_m1 = vec2(nE2_m1, 0.0);
+                      nn2_m1 = normalize(vec3(
+                        scene_sdf_image(p2_m1 + ve2_m1.xyy) - scene_sdf_image(p2_m1 - ve2_m1.xyy),
+                        scene_sdf_image(p2_m1 + ve2_m1.yxy) - scene_sdf_image(p2_m1 - ve2_m1.yxy),
+                        scene_sdf_image(p2_m1 + ve2_m1.yyx) - scene_sdf_image(p2_m1 - ve2_m1.yyx)));
+                    } else {
+                      nn2_m1 = normalize(p2_m1);
+                    }
+                    float df2_m1 = max(dot(nn2_m1, ldir_m1), 0.0);
+                    float sha2_m1 = 1.0;
+                    if (float(u_m1_softShadow) > 0.5) {
+                      vec3 shRo2_m1 = p2_m1 + nn2_m1 * float(u_m1_shadowNormalBias) + ldir_m1 * float(u_m1_shadowLightBias);
+                      float ts2_m1 = float(u_m1_shadowStart);
+                      float shEps2_m1 = float(u_m1_shadowHitEps);
+                      float shRelax2_m1 = float(u_m1_shadowStepRelax) * float(u_m1_distTrust);
+                      for (int is2_m1 = 0; is2_m1 < 20; is2_m1++) {
+                        float dh2_m1 = scene_sdf_image(shRo2_m1 + ldir_m1 * ts2_m1);
+                        float shShell2_m1 = shEps2_m1 * (3.0 + 0.06 * ts2_m1);
+                        sha2_m1 = min(sha2_m1, smoothstep(0.0, shShell2_m1, dh2_m1));
+                        sha2_m1 = min(sha2_m1, float(u_m1_shadowK) * max(dh2_m1, 0.0) / max(ts2_m1, 1e-4));
+                        ts2_m1 += clamp(dh2_m1 * shRelax2_m1, float(u_m1_shadowStepMin), float(u_m1_shadowStepMax));
+                        if (ts2_m1 > float(u_m1_shadowMax) * 0.5) break;
+                        if (sha2_m1 < 0.001) break;
+                      }
+                    }
+                    vec3 tr2_m1;
+                    if (float(0.0) < 0.5) {
+                      vec3 an2_m1 = abs(nn2_m1);
+                      vec3 nw2_m1 = an2_m1 / max(dot(an2_m1, vec3(1.0)), 1e-4);
+                      tr2_m1 = texture(iChannel0, p2_m1.yz * tsu_m1).rgb * nw2_m1.x
+                        + texture(iChannel0, p2_m1.zx * tsu_m1).rgb * nw2_m1.y
+                        + texture(iChannel0, p2_m1.xy * tsu_m1).rgb * nw2_m1.z;
+                    } else {
+                      vec2 tc2_m1 = vec2(atan(p2_m1.x, p2_m1.z) * 0.159154943, p2_m1.y) * tsu_m1;
+                      tr2_m1 = texture(iChannel0, tc2_m1).rgb;
+                    }
+                    vec3 tm2_m1 = mix(vec3(1.0), tr2_m1, clamp(float(u_m1_surfTexBlend), 0.0, 1.0) * step(0.5, tsOn_m1));
+                    vec3 pal2_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + df2_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+                    vec3 sm2_m1 = mix(sun_m1, pal2_m1, float(u_m1_palMix));
+                    gicol_m1 += float(u_m1_giSecondStr) * (amb_m1 + df2_m1 * sha2_m1 * sm2_m1) * tm2_m1;
+                    break;
+                  }
+                  float dt2R_m1 = max(d2_m1 * float(u_m1_stepScale) * float(u_m1_distTrust), float(u_m1_minStep));
+                  float dt2_m1 = dt2R_m1;
+                  if (float(u_m1_maxStepAbs) > 0.0) dt2_m1 = min(dt2_m1, float(u_m1_maxStepAbs));
+                  if (float(u_m1_maxStepRelT) > 0.0) dt2_m1 = min(dt2_m1, float(u_m1_maxStepRelT) * max(t2_m1, 1e-4));
+                  t2_m1 += dt2_m1;
+                  if (t2_m1 > float(u_m1_giMaxDist) * 0.5) break;
+                }
+              }
+              break;
+            }
+            float dtGiR_m1 = max(dg_m1 * float(u_m1_stepScale) * float(u_m1_distTrust), float(u_m1_minStep));
+            float dtGi_m1 = dtGiR_m1;
+            if (float(u_m1_maxStepAbs) > 0.0) dtGi_m1 = min(dtGi_m1, float(u_m1_maxStepAbs));
+            if (float(u_m1_maxStepRelT) > 0.0) dtGi_m1 = min(dtGi_m1, float(u_m1_maxStepRelT) * max(tgi_m1, 1e-4));
+            tgi_m1 += dtGi_m1;
+            if (tgi_m1 > float(u_m1_giMaxDist)) break;
+          }
+          giAcc_m1 += gicol_m1 * ndwi_m1;
+        }
+        clm_m1 += float(u_m1_giStr) * giAcc_m1 * (0.5 * 0.318309886); // ~hemisphere / pi for 3 cosine-weighted-ish samples
+      }
+
+      break;
+    }
+    dLst_m1 = dmc_m1;
+    float dtMcRaw_m1 = max(dmc_m1 * float(u_m1_stepScale) * float(u_m1_distTrust), float(u_m1_minStep));
+    float dtMc_m1 = dtMcRaw_m1;
+    if (float(u_m1_maxStepAbs) > 0.0) dtMc_m1 = min(dtMc_m1, float(u_m1_maxStepAbs));
+    if (float(u_m1_maxStepRelT) > 0.0) dtMc_m1 = min(dtMc_m1, float(u_m1_maxStepRelT) * max(tmc_m1, 1e-4));
+    dtLst_m1 = dtMc_m1;
+    tmc_m1 += dtMc_m1;
+    if (tmc_m1 > float(u_m1_maxDist)) break;
+  }
+  if (hitMc_m1 < 0.5 && float(0.0) > 0.5) {
+    float hitEpsRB_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+    float bandRB_m1 = hitEpsRB_m1 * float(u_m1_recoverBand);
+    if (dLst_m1 > 0.0 && dLst_m1 < bandRB_m1 && dtLst_m1 > 1e-8 && tmc_m1 >= dtLst_m1) {
+      float tLoRB_m1 = tmc_m1 - dtLst_m1;
+      float tHiRB_m1 = tmc_m1;
+      for (int irb_m1 = 0; irb_m1 < 12; irb_m1++) {
+        float tMidRB_m1 = 0.5 * (tLoRB_m1 + tHiRB_m1);
+        float dMidRB_m1 = scene_sdf_image(rmo_m1 + rmd_m1 * tMidRB_m1);
+        if (dMidRB_m1 < hitEpsRB_m1) tHiRB_m1 = tMidRB_m1; else tLoRB_m1 = tMidRB_m1;
+      }
+      tmc_m1 = tHiRB_m1;
+      vec3 pmcRB_m1 = rmo_m1 + rmd_m1 * tmc_m1;
+      float dFinRB_m1 = scene_sdf_image(pmcRB_m1);
+      float hitEpsFin_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+      if (dFinRB_m1 < hitEpsFin_m1 && abs(dFinRB_m1) < 1e4) {
+        float nEpsRB_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(tmc_m1, 1e-4));
+        vec3 nrb_m1;
+        if (float(u_m1_nTetra) > 0.5) {
+          vec2 teb_m1 = vec2(1.0, -1.0) * 0.57735027 * nEpsRB_m1;
+          nrb_m1 = normalize(
+            teb_m1.xyy * scene_sdf_image(pmcRB_m1 + teb_m1.xyy) +
+            teb_m1.yyx * scene_sdf_image(pmcRB_m1 + teb_m1.yyx) +
+            teb_m1.yxy * scene_sdf_image(pmcRB_m1 + teb_m1.yxy) +
+            teb_m1.xxx * scene_sdf_image(pmcRB_m1 + teb_m1.xxx));
+        } else if (float(u_m1_iqNormal) > 0.5) {
+          vec2 veb_m1 = vec2(nEpsRB_m1, 0.0);
+          nrb_m1 = normalize(vec3(
+            scene_sdf_image(pmcRB_m1 + veb_m1.xyy) - scene_sdf_image(pmcRB_m1 - veb_m1.xyy),
+            scene_sdf_image(pmcRB_m1 + veb_m1.yxy) - scene_sdf_image(pmcRB_m1 - veb_m1.yxy),
+            scene_sdf_image(pmcRB_m1 + veb_m1.yyx) - scene_sdf_image(pmcRB_m1 - veb_m1.yyx)));
+        } else {
+          nrb_m1 = normalize(pmcRB_m1);
+        }
+        float dfRb_m1 = max(dot(nrb_m1, ldir_m1), 0.0);
+        vec3 texMixRb_m1 = vec3(1.0);
+
+        vec3 baseRb_m1 = vec3(0.06, 0.07, 0.1);
+        vec3 sunRb_m1 = vec3(0.85, 0.82, 0.78);
+        vec3 palRb_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + dfRb_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+        vec3 sunMixRb_m1 = mix(sunRb_m1, palRb_m1, float(u_m1_palMix));
+        vec3 litRb_m1 = (baseRb_m1 + dfRb_m1 * sunMixRb_m1) * texMixRb_m1;
+        clm_m1 = amb_m1 + litRb_m1;
+      }
+    }
+  }
+  vec3 outRgb_m1 = clm_m1;
+  if (float(u_m1_fogOn) > 0.5) {
+    float fogM_m1 = 1.0 - exp(-tmc_m1 * float(u_m1_fogDensity));
+    vec3 fogC_m1 = vec3(float(u_m1_fogR), float(u_m1_fogG), float(u_m1_fogB));
+    outRgb_m1 = mix(outRgb_m1, fogC_m1, fogM_m1);
+  }
+  vec4 g_m1_col = vec4(outRgb_m1, 1.0);
+  // node: o1
+  fragColor = g_m1_col;
+}
+"
+`;
+
+exports[`compileGraph (golden GLSL snapshots) > raymarch_scene (sphere) fragmentSource 1`] = `
+"#version 300 es
+precision highp float;
+uniform vec3 iResolution;
+uniform float iTime;
+uniform vec4 iMouse;
+uniform int iFrame;
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
+uniform sampler2D iChannel2;
+uniform sampler2D iChannel3;
+uniform float u_audioLevel;
+uniform float u_audioBandLow;
+uniform float u_audioBandMid;
+uniform float u_audioBandHigh;
+in vec2 v_uv;
+out vec4 fragColor;
+
+float smin(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float smin_exp(float a, float b, float k) {
+  k = max(k, 1e-5);
+  float res = exp(-k * a) + exp(-k * b);
+  return -log(max(res, 1e-20)) / k;
+}
+
+float iq_hash31(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float smax(float a, float b, float k) {
+  return -smin(-a, -b, k);
+}
+
+float smax_exp(float a, float b, float k) {
+  return -smin_exp(-a, -b, k);
+}
+
+float iq_vnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = iq_hash31(i + vec3(0.0, 0.0, 0.0));
+  float n100 = iq_hash31(i + vec3(1.0, 0.0, 0.0));
+  float n010 = iq_hash31(i + vec3(0.0, 1.0, 0.0));
+  float n110 = iq_hash31(i + vec3(1.0, 1.0, 0.0));
+  float n001 = iq_hash31(i + vec3(0.0, 0.0, 1.0));
+  float n101 = iq_hash31(i + vec3(1.0, 0.0, 1.0));
+  float n011 = iq_hash31(i + vec3(0.0, 1.0, 1.0));
+  float n111 = iq_hash31(i + vec3(1.0, 1.0, 1.0));
+  float nx00 = mix(n000, n100, f.x);
+  float nx10 = mix(n010, n110, f.x);
+  float nx01 = mix(n001, n101, f.x);
+  float nx11 = mix(n011, n111, f.x);
+  float nxy0 = mix(nx00, nx10, f.y);
+  float nxy1 = mix(nx01, nx11, f.y);
+  return mix(nxy0, nxy1, f.z);
+}
+
+float iq_fbm3(vec3 x, float lac, float gn) {
+  float a = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 5; i++) {
+    a += amp * iq_vnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return a;
+}
+
+vec2 iq_voronoi3_f12(vec3 x) {
+  vec3 n = floor(x);
+  vec3 f = fract(x);
+  vec2 mr = vec2(8.0, 8.0);
+  for (int kk = -1; kk <= 1; kk++)
+  for (int jj = -1; jj <= 1; jj++)
+  for (int ii = -1; ii <= 1; ii++) {
+    vec3 g = vec3(float(ii), float(jj), float(kk));
+    vec3 cell = n + g;
+    vec3 o = vec3(
+      iq_hash31(cell),
+      iq_hash31(cell + vec3(17.0, 31.0, 7.0)),
+      iq_hash31(cell + vec3(43.0, 11.0, 23.0))) * 0.5 + 0.25;
+    vec3 r = g + o - f;
+    float d = dot(r, r);
+    if (d < mr.x) { mr.y = mr.x; mr.x = d; }
+    else if (d < mr.y) mr.y = d;
+  }
+  return sqrt(mr);
+}
+
+vec3 iq_rand_grad3(vec3 i) {
+  return normalize(vec3(
+    iq_hash31(i + vec3(0.0, 0.0, 0.0)),
+    iq_hash31(i + vec3(31.0, 17.0, 7.0)),
+    iq_hash31(i + vec3(11.0, 23.0, 29.0))) * 2.0 - 1.0);
+}
+
+float iq_gnoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  float n000 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 0.0)), f - vec3(0.0, 0.0, 0.0));
+  float n100 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 0.0)), f - vec3(1.0, 0.0, 0.0));
+  float n010 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 0.0)), f - vec3(0.0, 1.0, 0.0));
+  float n110 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 0.0)), f - vec3(1.0, 1.0, 0.0));
+  float n001 = dot(iq_rand_grad3(i + vec3(0.0, 0.0, 1.0)), f - vec3(0.0, 0.0, 1.0));
+  float n101 = dot(iq_rand_grad3(i + vec3(1.0, 0.0, 1.0)), f - vec3(1.0, 0.0, 1.0));
+  float n011 = dot(iq_rand_grad3(i + vec3(0.0, 1.0, 1.0)), f - vec3(0.0, 1.0, 1.0));
+  float n111 = dot(iq_rand_grad3(i + vec3(1.0, 1.0, 1.0)), f - vec3(1.0, 1.0, 1.0));
+  return mix(
+    mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+    mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+    u.z);
+}
+
+float iq_fbm3_g(vec3 x, float lac, float gn) {
+  float s = 0.0;
+  float amp = 0.5;
+  float f = 1.0;
+  for (int i = 0; i < 4; i++) {
+    s += amp * iq_gnoise(x * f);
+    f *= lac;
+    amp *= gn;
+  }
+  return s;
+}
+
+vec3 iq_fbm3_grad_fd(vec3 x, float lac, float gn, float e) {
+  float ex = iq_fbm3(x + vec3(e, 0.0, 0.0), lac, gn) - iq_fbm3(x - vec3(e, 0.0, 0.0), lac, gn);
+  float ey = iq_fbm3(x + vec3(0.0, e, 0.0), lac, gn) - iq_fbm3(x - vec3(0.0, e, 0.0), lac, gn);
+  float ez = iq_fbm3(x + vec3(0.0, 0.0, e), lac, gn) - iq_fbm3(x - vec3(0.0, 0.0, e), lac, gn);
+  return vec3(ex, ey, ez) / max(2.0 * e, 1e-6);
+}
+
+uniform float u_s1_r;
+uniform float u_r1_fov;
+uniform float u_r1_camZ;
+uniform float u_m1_maxSteps;
+uniform float u_m1_maxDist;
+uniform float u_m1_eps;
+uniform float u_m1_relHitEps;
+uniform float u_m1_recoverBand;
+uniform float u_m1_nEpsRel;
+uniform float u_m1_ambR;
+uniform float u_m1_ambG;
+uniform float u_m1_ambB;
+uniform float u_m1_iqNormal;
+uniform float u_m1_nTetra;
+uniform float u_m1_nEps;
+uniform float u_m1_curvAmp;
+uniform float u_m1_curvEps;
+uniform float u_m1_skyStr;
+uniform float u_m1_skySteps;
+uniform float u_m1_skyBias;
+uniform float u_m1_skyMaxT;
+uniform float u_m1_skyTopR;
+uniform float u_m1_skyTopG;
+uniform float u_m1_skyTopB;
+uniform float u_m1_skyBotR;
+uniform float u_m1_skyBotG;
+uniform float u_m1_skyBotB;
+uniform float u_m1_softShadow;
+uniform float u_m1_shadowK;
+uniform float u_m1_shadowMax;
+uniform float u_m1_shadowStart;
+uniform float u_m1_shadowHitEps;
+uniform float u_m1_shadowNormalBias;
+uniform float u_m1_shadowLightBias;
+uniform float u_m1_shadowStepRelax;
+uniform float u_m1_shadowStepMin;
+uniform float u_m1_shadowStepMax;
+uniform float u_m1_aoOn;
+uniform float u_m1_aoStep;
+uniform float u_m1_aoAmp;
+uniform float u_m1_minStep;
+uniform float u_m1_stepScale;
+uniform float u_m1_distTrust;
+uniform float u_m1_maxStepAbs;
+uniform float u_m1_maxStepRelT;
+uniform float u_m1_lx;
+uniform float u_m1_ly;
+uniform float u_m1_lz;
+uniform float u_m1_specOn;
+uniform float u_m1_specPow;
+uniform float u_m1_specStr;
+uniform float u_m1_palMix;
+uniform float u_m1_palA;
+uniform float u_m1_palB;
+uniform float u_m1_palC;
+uniform float u_m1_fogOn;
+uniform float u_m1_fogDensity;
+uniform float u_m1_fogR;
+uniform float u_m1_fogG;
+uniform float u_m1_fogB;
+uniform float u_m1_reflStr;
+uniform float u_m1_reflSteps;
+uniform float u_m1_reflBias;
+uniform float u_m1_reflMaxDist;
+uniform float u_m1_reflStepScale;
+uniform float u_m1_reflFresnel;
+uniform float u_m1_giStr;
+uniform float u_m1_giRough;
+uniform float u_m1_giSteps;
+uniform float u_m1_giMaxDist;
+uniform float u_m1_giBias;
+uniform float u_m1_giSecondBounce;
+uniform float u_m1_giSteps2;
+uniform float u_m1_giSecondStr;
+uniform float u_m1_surfTexOn;
+uniform float u_m1_surfTexScale;
+uniform float u_m1_surfTexBlend;
+
+vec3 scene_mat_image(vec3 p) { return vec3(1.0); }
+float scene_sdf_image(vec3 p) {
+  // node: s1
+  float g_s1_d = length(p) - float(u_s1_r);
+  // node: k1
+  return g_s1_d;
+}
+
+void main() {
+  // node: u1
+  vec2 g_u1_uv = v_uv;
+  // node: r1 — https://iquilezles.org/articles/raymarchingdf/
+  vec2 ndc_r1 = g_u1_uv * 2.0 - 1.0;
+  float asp_r1 = iResolution.x / max(iResolution.y, 1.0);
+  ndc_r1.x *= asp_r1;
+  float fov_r1 = radians(float(u_r1_fov));
+  vec3 g_r1_ro = vec3(0.0, 0.0, float(u_r1_camZ));
+  vec3 g_r1_rd = normalize(vec3(ndc_r1 * tan(fov_r1 * 0.5), -1.0));
+  // node: m1 — raymarch / lighting / https://iquilezles.org/articles/raymarchingdf/ https://iquilezles.org/articles/rmimprovement/ https://iquilezles.org/articles/palettes/ https://iquilezles.org/articles/normalsSDF/
+  vec3 rmo_m1 = g_r1_ro;
+  vec3 rmd_m1 = normalize(g_r1_rd);
+  float tmc_m1 = 0.0;
+  vec3 amb_m1 = vec3(float(u_m1_ambR), float(u_m1_ambG), float(u_m1_ambB));
+  vec3 clm_m1 = amb_m1;
+  vec3 ldir_m1 = vec3(float(u_m1_lx), float(u_m1_ly), float(u_m1_lz));
+  ldir_m1 = ldir_m1 / max(length(ldir_m1), 1e-4);
+  float hitMc_m1 = 0.0;
+  float dLst_m1 = 1e9;
+  float dtLst_m1 = 0.0;
+  for (int imc_m1 = 0; imc_m1 < 512; imc_m1++) {
+    if (float(imc_m1) >= float(u_m1_maxSteps)) break;
+    vec3 pmc_m1 = rmo_m1 + tmc_m1 * rmd_m1;
+    float dmc_m1 = scene_sdf_image(pmc_m1);
+    float hitEpsP_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+    if (dmc_m1 < hitEpsP_m1) {
+      hitMc_m1 = 1.0;
+
+
+      float nEpsU_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(tmc_m1, 1e-4));
+      vec3 nmc_m1;
+      if (float(u_m1_nTetra) > 0.5) {
+        vec2 te_m1 = vec2(1.0, -1.0) * 0.57735027 * nEpsU_m1;
+        nmc_m1 = normalize(
+          te_m1.xyy * scene_sdf_image(pmc_m1 + te_m1.xyy) +
+          te_m1.yyx * scene_sdf_image(pmc_m1 + te_m1.yyx) +
+          te_m1.yxy * scene_sdf_image(pmc_m1 + te_m1.yxy) +
+          te_m1.xxx * scene_sdf_image(pmc_m1 + te_m1.xxx));
+      } else if (float(u_m1_iqNormal) > 0.5) {
+        vec2 ve_m1 = vec2(nEpsU_m1, 0.0);
+        nmc_m1 = normalize(vec3(
+          scene_sdf_image(pmc_m1 + ve_m1.xyy) - scene_sdf_image(pmc_m1 - ve_m1.xyy),
+          scene_sdf_image(pmc_m1 + ve_m1.yxy) - scene_sdf_image(pmc_m1 - ve_m1.yxy),
+          scene_sdf_image(pmc_m1 + ve_m1.yyx) - scene_sdf_image(pmc_m1 - ve_m1.yyx)));
+      } else {
+        nmc_m1 = normalize(pmc_m1);
+      }
+
+      float df_m1 = max(dot(nmc_m1, ldir_m1), 0.0);
+      float sha_m1 = 1.0;
+      if (float(u_m1_softShadow) > 0.5) {
+        vec3 shRo_m1 = pmc_m1 + nmc_m1 * float(u_m1_shadowNormalBias) + ldir_m1 * float(u_m1_shadowLightBias);
+        float tsh_m1 = float(u_m1_shadowStart);
+        float shEps_m1 = float(u_m1_shadowHitEps);
+        float shRelax_m1 = float(u_m1_shadowStepRelax) * float(u_m1_distTrust);
+        for (int ish_m1 = 0; ish_m1 < 40; ish_m1++) {
+          float dh_m1 = scene_sdf_image(shRo_m1 + ldir_m1 * tsh_m1);
+          float shShell_m1 = shEps_m1 * (3.0 + 0.06 * tsh_m1);
+          sha_m1 = min(sha_m1, smoothstep(0.0, shShell_m1, dh_m1));
+          sha_m1 = min(sha_m1, float(u_m1_shadowK) * max(dh_m1, 0.0) / max(tsh_m1, 1e-4));
+          tsh_m1 += clamp(dh_m1 * shRelax_m1, float(u_m1_shadowStepMin), float(u_m1_shadowStepMax));
+          if (tsh_m1 > float(u_m1_shadowMax)) break;
+          if (sha_m1 < 0.001) break;
+        }
+      }
+      float occ_m1 = 1.0;
+      if (float(u_m1_aoOn) > 0.5) {
+        float sca_m1 = 1.0;
+        float tao_m1 = float(u_m1_aoStep);
+        for (int iao_m1 = 0; iao_m1 < 5; iao_m1++) {
+          float dao_m1 = scene_sdf_image(pmc_m1 + nmc_m1 * tao_m1);
+          sca_m1 = min(sca_m1, dao_m1 / max(tao_m1, 1e-4));
+          tao_m1 += float(u_m1_aoStep);
+        }
+        occ_m1 = clamp(1.0 - float(u_m1_aoAmp) * (1.0 - sca_m1), 0.0, 1.0);
+      }
+      float tsOn_m1 = float(u_m1_surfTexOn);
+      float tsu_m1 = float(u_m1_surfTexScale);
+      vec3 texRaw_m1;
+      if (float(0.0) < 0.5) {
+        vec3 an_m1 = abs(nmc_m1);
+        vec3 nw_m1 = an_m1 / max(dot(an_m1, vec3(1.0)), 1e-4);
+        // Always call texture() (do not gate on surfTexOn): some drivers strip samplers only used inside uniform branches.
+        vec3 samX_m1 = texture(iChannel0, pmc_m1.yz * tsu_m1).rgb;
+        vec3 samY_m1 = texture(iChannel0, pmc_m1.zx * tsu_m1).rgb;
+        vec3 samZ_m1 = texture(iChannel0, pmc_m1.xy * tsu_m1).rgb;
+        texRaw_m1 = samX_m1 * nw_m1.x + samY_m1 * nw_m1.y + samZ_m1 * nw_m1.z;
+      } else {
+        vec2 tcyl_m1 = vec2(atan(pmc_m1.x, pmc_m1.z) * 0.159154943, pmc_m1.y) * tsu_m1;
+        texRaw_m1 = texture(iChannel0, tcyl_m1).rgb;
+      }
+      vec3 texMix_m1 = mix(vec3(1.0), texRaw_m1, clamp(float(u_m1_surfTexBlend), 0.0, 1.0) * step(0.5, tsOn_m1));
+
+      vec3 base_m1 = vec3(0.06, 0.07, 0.1);
+      vec3 sun_m1 = vec3(0.85, 0.82, 0.78);
+      vec3 pal_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + df_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+      vec3 sunMix_m1 = mix(sun_m1, pal_m1, float(u_m1_palMix));
+      vec3 lit_m1 = (base_m1 + df_m1 * sha_m1 * sunMix_m1) * texMix_m1;
+      if (float(u_m1_specOn) > 0.5) {
+        vec3 V_m1 = -rmd_m1;
+        vec3 H_m1 = normalize(ldir_m1 + V_m1);
+        lit_m1 += float(u_m1_specStr) * pow(max(dot(nmc_m1, H_m1), 0.0), float(u_m1_specPow)) * sunMix_m1;
+      }
+      if (float(u_m1_curvAmp) > 0.001) {
+        float cu_m1 = (scene_sdf_image(pmc_m1 + nmc_m1 * float(u_m1_curvEps)) + scene_sdf_image(pmc_m1 - nmc_m1 * float(u_m1_curvEps))) / max(float(u_m1_curvEps), 1e-5);
+        lit_m1 *= clamp(1.0 - float(u_m1_curvAmp) * max(cu_m1, 0.0), 0.25, 1.0);
+      }
+      clm_m1 = amb_m1 + occ_m1 * lit_m1;
+
+
+
+      break;
+    }
+    dLst_m1 = dmc_m1;
+    float dtMcRaw_m1 = max(dmc_m1 * float(u_m1_stepScale) * float(u_m1_distTrust), float(u_m1_minStep));
+    float dtMc_m1 = dtMcRaw_m1;
+    if (float(u_m1_maxStepAbs) > 0.0) dtMc_m1 = min(dtMc_m1, float(u_m1_maxStepAbs));
+    if (float(u_m1_maxStepRelT) > 0.0) dtMc_m1 = min(dtMc_m1, float(u_m1_maxStepRelT) * max(tmc_m1, 1e-4));
+    dtLst_m1 = dtMc_m1;
+    tmc_m1 += dtMc_m1;
+    if (tmc_m1 > float(u_m1_maxDist)) break;
+  }
+  if (hitMc_m1 < 0.5 && float(0.0) > 0.5) {
+    float hitEpsRB_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+    float bandRB_m1 = hitEpsRB_m1 * float(u_m1_recoverBand);
+    if (dLst_m1 > 0.0 && dLst_m1 < bandRB_m1 && dtLst_m1 > 1e-8 && tmc_m1 >= dtLst_m1) {
+      float tLoRB_m1 = tmc_m1 - dtLst_m1;
+      float tHiRB_m1 = tmc_m1;
+      for (int irb_m1 = 0; irb_m1 < 12; irb_m1++) {
+        float tMidRB_m1 = 0.5 * (tLoRB_m1 + tHiRB_m1);
+        float dMidRB_m1 = scene_sdf_image(rmo_m1 + rmd_m1 * tMidRB_m1);
+        if (dMidRB_m1 < hitEpsRB_m1) tHiRB_m1 = tMidRB_m1; else tLoRB_m1 = tMidRB_m1;
+      }
+      tmc_m1 = tHiRB_m1;
+      vec3 pmcRB_m1 = rmo_m1 + rmd_m1 * tmc_m1;
+      float dFinRB_m1 = scene_sdf_image(pmcRB_m1);
+      float hitEpsFin_m1 = max(float(u_m1_eps), float(u_m1_relHitEps) * max(tmc_m1, 1e-4));
+      if (dFinRB_m1 < hitEpsFin_m1 && abs(dFinRB_m1) < 1e4) {
+        float nEpsRB_m1 = float(u_m1_nEps) * (1.0 + float(u_m1_nEpsRel) * max(tmc_m1, 1e-4));
+        vec3 nrb_m1;
+        if (float(u_m1_nTetra) > 0.5) {
+          vec2 teb_m1 = vec2(1.0, -1.0) * 0.57735027 * nEpsRB_m1;
+          nrb_m1 = normalize(
+            teb_m1.xyy * scene_sdf_image(pmcRB_m1 + teb_m1.xyy) +
+            teb_m1.yyx * scene_sdf_image(pmcRB_m1 + teb_m1.yyx) +
+            teb_m1.yxy * scene_sdf_image(pmcRB_m1 + teb_m1.yxy) +
+            teb_m1.xxx * scene_sdf_image(pmcRB_m1 + teb_m1.xxx));
+        } else if (float(u_m1_iqNormal) > 0.5) {
+          vec2 veb_m1 = vec2(nEpsRB_m1, 0.0);
+          nrb_m1 = normalize(vec3(
+            scene_sdf_image(pmcRB_m1 + veb_m1.xyy) - scene_sdf_image(pmcRB_m1 - veb_m1.xyy),
+            scene_sdf_image(pmcRB_m1 + veb_m1.yxy) - scene_sdf_image(pmcRB_m1 - veb_m1.yxy),
+            scene_sdf_image(pmcRB_m1 + veb_m1.yyx) - scene_sdf_image(pmcRB_m1 - veb_m1.yyx)));
+        } else {
+          nrb_m1 = normalize(pmcRB_m1);
+        }
+        float dfRb_m1 = max(dot(nrb_m1, ldir_m1), 0.0);
+        vec3 texMixRb_m1 = vec3(1.0);
+
+        vec3 baseRb_m1 = vec3(0.06, 0.07, 0.1);
+        vec3 sunRb_m1 = vec3(0.85, 0.82, 0.78);
+        vec3 palRb_m1 = 0.5 + 0.5 * cos(vec3(float(u_m1_palA), float(u_m1_palB), float(u_m1_palC)) + dfRb_m1 * 6.28318 + vec3(0.0, 2.1, 4.2));
+        vec3 sunMixRb_m1 = mix(sunRb_m1, palRb_m1, float(u_m1_palMix));
+        vec3 litRb_m1 = (baseRb_m1 + dfRb_m1 * sunMixRb_m1) * texMixRb_m1;
+        clm_m1 = amb_m1 + litRb_m1;
+      }
+    }
+  }
+  vec3 outRgb_m1 = clm_m1;
+  if (float(u_m1_fogOn) > 0.5) {
+    float fogM_m1 = 1.0 - exp(-tmc_m1 * float(u_m1_fogDensity));
+    vec3 fogC_m1 = vec3(float(u_m1_fogR), float(u_m1_fogG), float(u_m1_fogB));
+    outRgb_m1 = mix(outRgb_m1, fogC_m1, fogM_m1);
+  }
+  vec4 g_m1_col = vec4(outRgb_m1, 1.0);
+  // node: o1
+  fragColor = g_m1_col;
+}
+"
+`;

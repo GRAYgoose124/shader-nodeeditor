@@ -8,6 +8,7 @@
 	} from '@xyflow/svelte';
 	import type { Position } from '@xyflow/system';
 	import { resolveCollapsedWireEndpoints } from './frameCollapse.js';
+	import { edgeDebugLabelsStore } from './edgeDebugLabelsStore.js';
 
 	type ShaderWireEdgeProps = SmoothStepEdgeProps & {
 		source?: string;
@@ -67,6 +68,22 @@
 		);
 	});
 
+	let dbgMap = $state<Record<string, string>>({});
+	$effect(() => {
+		const u = edgeDebugLabelsStore.subscribe((m) => {
+			dbgMap = m;
+		});
+		return u;
+	});
+
+	const displayLabel = $derived.by(() => {
+		const key = id ?? '';
+		const d = dbgMap[key] ?? '';
+		if (d && label) return `${String(label)}\n${d}`;
+		if (d) return d;
+		return label;
+	});
+
 	let [path, labelX, labelY] = $derived(
 		getSmoothStepPath({
 			sourceX: resolved.sourceX,
@@ -88,7 +105,7 @@
 		{path}
 		{labelX}
 		{labelY}
-		{label}
+		label={displayLabel}
 		{labelStyle}
 		{markerStart}
 		{markerEnd}

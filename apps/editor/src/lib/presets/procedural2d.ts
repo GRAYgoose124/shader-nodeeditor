@@ -1,3 +1,4 @@
+import type { GraphDocument } from '@shadertoy/compiler';
 import type { Edge, Node } from '@xyflow/svelte';
 import { createGraphNode, toFlowNode, type ShaderNodeData } from '../flowDoc.js';
 import { makeEdge } from './utils.js';

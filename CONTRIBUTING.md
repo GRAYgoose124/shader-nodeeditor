@@ -9,4 +9,6 @@
 
 Editor-only flow glue (palette model, import/export, dock/store bridges, shortcuts) lives under `apps/editor/src/lib/page/`; split inspector UI lives under `apps/editor/src/lib/editor/inspector/`.
 
-For compiler and buffer conventions, see `packages/compiler/ARCHITECTURE.md`.
+**Presets and media:** a preset may include `meta.mediaInputs` and `meta.iChannels` entries that use `{ media: "<id>" }`. Graph JSON round-trips those fields, but **binary files are not embedded**—after load, users pick files again in the inspector (session store `apps/editor/src/lib/editor/mediaFileById.ts`). Prefer buffer-only `iChannels` in checked-in starters unless the preset description tells authors to bind media.
+
+For compiler and buffer conventions, see `packages/compiler/ARCHITECTURE.md` and `docs/shader-pipeline.md`.

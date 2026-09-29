@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { CompileResult, GraphNode, NodeTypeDef, UniformManifestEntry } from '@shadertoy/compiler';
 	import type { BufferId } from '@shadertoy/compiler';
-	import { isParamVisible } from '@shadertoy/compiler';
+	import { isParamGraphDriveFromEdges, isParamSliderDriver, isParamVisible } from '@shadertoy/compiler';
 	import type { ShadertoyRunner } from '@shadertoy/runner';
 	import { boundsFromUniform, clampScalar } from '$lib/editor/paramControls.js';
+	import { graphEdgesStore } from '$lib/editor/graphSync.js';
 
 	type UniformSort = 'manifest' | 'name' | 'label';
 
@@ -34,6 +35,8 @@
 	let uniformFilter = $state('');
 	let uniformSort = $state<UniformSort>('manifest');
 
+	const graphEdges = $derived($graphEdgesStore);
+
 	function isUniformRowVisible(u: UniformManifestEntry): boolean {
 		const gn = shaderGraphNodesById.get(u.nodeId);
 		if (!gn) return true;
@@ -41,7 +44,9 @@
 		if (!def) return true;
 		const p = def.params.find((x) => x.id === u.paramId);
 		if (!p) return true;
-		return isParamVisible(p, gn.data);
+		if (!isParamVisible(p, gn.data)) return false;
+		if (isParamSliderDriver(p) && isParamGraphDriveFromEdges(graphEdges, gn, u.paramId)) return false;
+		return true;
 	}
 
 	function filterAndSortUniforms(list: UniformManifestEntry[]): UniformManifestEntry[] {

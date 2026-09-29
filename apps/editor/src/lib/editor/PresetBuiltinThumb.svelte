@@ -1,35 +1,37 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { CompileResult } from '@shadertoy/compiler';
-	import { ShadertoyRunner } from '@shadertoy/runner';
 	import type { PresetCatalogEntry } from '$lib/presetCatalog.js';
+	import type { PresetId } from '$lib/presetIds.js';
 	import {
 		builtinPresetThumbUrl,
 		builtinPresetThumbUrlPng,
 		presetCardGradient,
 	} from '$lib/editor/presetThumb.js';
-	import { getCachedPresetStillPersistent } from './presetGalleryRender.js';
+	import {
+		bumpBuiltinGalleryThumbTick,
+		getCachedPresetStillFromMemory,
+		getCachedPresetStillPersistent,
+		setCachedPresetStillPersistent,
+	} from './presetGalleryRender.js';
+	import { captureCompileResultStill } from './presetGalleryRender.js';
 
 	let {
 		entry,
-		stillDataUrl = undefined as string | undefined,
 		cacheKey = undefined as string | undefined,
+		thumbRefreshTick = 0,
 		compileResult = undefined as CompileResult | null | undefined,
 		ensureCompiled,
-		ensureStill,
 	}: {
 		entry: PresetCatalogEntry;
-		stillDataUrl?: string;
-		/** Optional preset gallery cache key to lazy-load the still. */
 		cacheKey?: string;
-		/** `undefined` = compile not finished yet for this preset. */
+		thumbRefreshTick?: number;
 		compileResult?: CompileResult | null;
-		ensureCompiled?: (presetId: string) => Promise<CompileResult | null>;
-		ensureStill?: (presetId: string) => Promise<void>;
+		ensureCompiled?: (presetId: PresetId) => Promise<CompileResult | null>;
 	} = $props();
 
 	let wrap: HTMLDivElement | undefined = $state();
-	let canvas: HTMLCanvasElement | undefined = $state();
-	let resolvedStill = $state<string | undefined>(stillDataUrl);
+	let resolvedStill = $state<string | undefined>(undefined);
 	let resolvedStillObjUrl = $state<string | null>(null);
 
 	/** 0 = webp, 1 = png, 2 = hide static (gradient only). */
@@ -43,98 +45,85 @@
 	);
 
 	let hoverWanted = $state(false);
-	let liveReady = $state(false);
 	let gen = 0;
-	let raf = 0;
-	let runner: ShadertoyRunner | null = null;
+	/** Delay heavy gallery compile until hover settles (avoids compiling every card on a fast sweep). */
+	let compileHoverDebounce: ReturnType<typeof setTimeout> | undefined;
+	const COMPILE_HOVER_MS = 200;
+	/** Delay GPU still-capture until hover settles (shared WebGL runner, can be heavy). */
+	let captureHoverDebounce: ReturnType<typeof setTimeout> | undefined;
+	const CAPTURE_HOVER_MS = 140;
+	/** One capture at a time (shared runner); prevents overlapping GL loads. */
+	let captureChain: Promise<void> = Promise.resolve();
 
-	function syncCanvasSize() {
-		const c = canvas;
-		const el = wrap;
-		if (!c || !el) return;
-		const r = el.getBoundingClientRect();
-		const dpr = Math.min(2, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
-		const w = Math.max(2, Math.floor(r.width * dpr));
-		const h = Math.max(2, Math.floor(r.height * dpr));
-		if (c.width !== w || c.height !== h) {
-			c.width = w;
-			c.height = h;
+	function setStillUrl(next: string | undefined) {
+		if (resolvedStillObjUrl && resolvedStillObjUrl !== next) {
+			URL.revokeObjectURL(resolvedStillObjUrl);
+			resolvedStillObjUrl = null;
 		}
-	}
-
-	function stopLive() {
-		hoverWanted = false;
-		liveReady = false;
-		cancelAnimationFrame(raf);
-		raf = 0;
-		runner?.dispose();
-		runner = null;
-	}
-
-	function tryStartLive() {
-		if (!hoverWanted || !compileResult || compileResult.errors.length > 0 || !canvas || !wrap) {
-			return;
-		}
-		const c = canvas;
-		const myGen = gen;
-		syncCanvasSize();
-		try {
-			runner?.dispose();
-			runner = null;
-			const r = new ShadertoyRunner(c);
-			const err = r.load(compileResult);
-			if (err || myGen !== gen || !hoverWanted) {
-				r.dispose();
-				runner = null;
-				return;
-			}
-			runner = r;
-			liveReady = true;
-			const mouse = { x: c.width * 0.5, y: c.height * 0.5, click: false };
-			const loop = () => {
-				if (myGen !== gen || !hoverWanted || !runner) return;
-				runner.renderFrame(mouse);
-				raf = requestAnimationFrame(loop);
-			};
-			raf = requestAnimationFrame(loop);
-		} catch {
-			if (myGen === gen) {
-				liveReady = false;
-			}
-			runner?.dispose();
-			runner = null;
-		}
+		if (next?.startsWith('blob:')) resolvedStillObjUrl = next;
+		resolvedStill = next;
 	}
 
 	$effect(() => {
-		if (hoverWanted && compileResult && !compileResult.errors.length) {
-			queueMicrotask(() => tryStartLive());
-		}
+		if (!hoverWanted) return;
+		const c = compileResult;
+		const key = cacheKey;
+		if (!c || !key || c.errors.length > 0) return;
+		const myGen = gen;
+		if (captureHoverDebounce) clearTimeout(captureHoverDebounce);
+		captureHoverDebounce = setTimeout(() => {
+			captureHoverDebounce = undefined;
+			captureChain = captureChain.then(async () => {
+				if (myGen !== gen || !hoverWanted) return;
+				const url = captureCompileResultStill(c, { warmFrames: 2 });
+				if (!url) return;
+				if (myGen !== gen || !hoverWanted) return;
+				await setCachedPresetStillPersistent(key, url);
+				bumpBuiltinGalleryThumbTick();
+				setStillUrl(url);
+			});
+		}, CAPTURE_HOVER_MS);
 	});
 
-	$effect(() => {
-		// Keep in sync when parent provides a still.
-		resolvedStill = stillDataUrl ?? resolvedStill;
+	function applyStillFromCache(key: string) {
+		const fromMem = getCachedPresetStillFromMemory(key);
+		if (fromMem === undefined) return false;
+		setStillUrl(fromMem ?? undefined);
+		return true;
+	}
+
+	onDestroy(() => {
+		if (resolvedStillObjUrl) URL.revokeObjectURL(resolvedStillObjUrl);
+		if (compileHoverDebounce) {
+			clearTimeout(compileHoverDebounce);
+			compileHoverDebounce = undefined;
+		}
+		if (captureHoverDebounce) {
+			clearTimeout(captureHoverDebounce);
+			captureHoverDebounce = undefined;
+		}
 	});
 
 	$effect(() => {
 		const key = cacheKey;
 		if (!key) return;
-		if (resolvedStill) return;
+		void thumbRefreshTick;
+		applyStillFromCache(key);
+	});
+
+	$effect(() => {
+		const key = cacheKey;
+		if (!key) return;
+		if (applyStillFromCache(key)) return;
 		let dead = false;
 		(async () => {
 			const v = await getCachedPresetStillPersistent(key);
 			if (dead) return;
 			if (typeof v === 'string' && v.length > 0) {
-				// If we get a blob object URL, remember so we can revoke later.
-				if (v.startsWith('blob:')) resolvedStillObjUrl = v;
-				resolvedStill = v;
+				setStillUrl(v);
 			}
 		})();
 		return () => {
-			// Prevent leaks from CacheStorage blob URLs.
-			if (resolvedStillObjUrl) URL.revokeObjectURL(resolvedStillObjUrl);
-			resolvedStillObjUrl = null;
 			dead = true;
 		};
 	});
@@ -146,19 +135,26 @@
 
 	function onEnter() {
 		hoverWanted = true;
-		// Do heavy work only on demand (avoids modal-open hitch and WebGL context churn).
 		if (compileResult === undefined && ensureCompiled) {
-			void ensureCompiled(entry.id);
+			if (compileHoverDebounce) clearTimeout(compileHoverDebounce);
+			compileHoverDebounce = setTimeout(() => {
+				compileHoverDebounce = undefined;
+				void ensureCompiled(entry.id);
+			}, COMPILE_HOVER_MS);
 		}
-		if (!resolvedStill && ensureStill) {
-			void ensureStill(entry.id);
-		}
-		queueMicrotask(() => tryStartLive());
 	}
 
 	function onLeave() {
+		if (compileHoverDebounce) {
+			clearTimeout(compileHoverDebounce);
+			compileHoverDebounce = undefined;
+		}
+		if (captureHoverDebounce) {
+			clearTimeout(captureHoverDebounce);
+			captureHoverDebounce = undefined;
+		}
 		gen++;
-		stopLive();
+		hoverWanted = false;
 	}
 </script>
 
@@ -175,15 +171,6 @@
 	{:else if staticUrl}
 		<img class="thumb-still" src={staticUrl} alt="" draggable="false" onerror={onStaticError} />
 	{/if}
-	<canvas
-		bind:this={canvas}
-		class="thumb-live"
-		class:show={hoverWanted && liveReady && !!compileResult}
-		aria-hidden="true"
-	></canvas>
-	{#if hoverWanted && liveReady && compileResult}
-		<span class="live-badge" aria-hidden="true">Live</span>
-	{/if}
 </div>
 
 <style>
@@ -199,34 +186,5 @@
 		height: 100%;
 		object-fit: cover;
 		pointer-events: none;
-	}
-	.thumb-live {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		display: block;
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 0.12s ease-out;
-	}
-	.thumb-live.show {
-		opacity: 1;
-	}
-	.live-badge {
-		position: absolute;
-		right: 6px;
-		top: 6px;
-		font-size: 9px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		padding: 2px 6px;
-		border-radius: 4px;
-		background: rgba(20, 24, 32, 0.85);
-		border: 1px solid #3a4a60;
-		color: #8fd8ff;
-		pointer-events: none;
-		z-index: 2;
 	}
 </style>

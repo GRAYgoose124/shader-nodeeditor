@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CompileResult, GraphMeta, NodeTypeDef, UniformManifestEntry } from '@shadertoy/compiler';
+	import EditorInspectorMediaPanel from '$lib/editor/inspector/EditorInspectorMediaPanel.svelte';
 	import type { BufferId, GraphNode } from '@shadertoy/compiler';
 	import type { GraphUniformPreset, ParamAnimationSpec } from '@shadertoy/compiler';
 	import type { Node } from '@xyflow/svelte';
@@ -14,6 +15,7 @@
 
 	let {
 		graphMeta,
+		patchGraphMeta,
 		activePass,
 		readiness,
 		previewDockPanelPresent,
@@ -44,6 +46,7 @@
 		patchParamAnimations,
 	}: {
 		graphMeta: GraphMeta;
+		patchGraphMeta: (fn: (draft: GraphMeta) => void) => void;
 		activePass: BufferId;
 		readiness: {
 			fragOut: boolean;
@@ -91,6 +94,7 @@
 		{activePass}
 		{readiness}
 	/>
+	<EditorInspectorMediaPanel {graphMeta} {activePass} {patchGraphMeta} {previewRunner} />
 	<EditorInspectorIChannelTable {graphMeta} {activePass} {compileResult} {gpuError} />
 	<EditorInspectorUniformPresets
 		compileErrorsCount={compileResult.errors.length}

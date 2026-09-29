@@ -5,10 +5,16 @@
 		compileResult,
 		gpuError,
 		onFocusNode,
+		onFocusEdge,
+		knownEdgeIds,
+		knownNodeIds,
 	}: {
 		compileResult: CompileResult;
 		gpuError: string | null;
 		onFocusNode: (nodeId: string) => void;
+		onFocusEdge: (edgeId: string) => void;
+		knownEdgeIds: Set<string>;
+		knownNodeIds: Set<string>;
 	} = $props();
 
 	const graphErrs = $derived(compileResult.errors);
@@ -54,6 +60,18 @@
 			if (el.selectionStart !== el.selectionEnd) return;
 			const line = lineAtCaret(el.value, el.selectionStart);
 			const ids = nodeIdsInText(line);
+			for (const id of ids) {
+				if (knownEdgeIds.has(id)) {
+					onFocusEdge(id);
+					return;
+				}
+			}
+			for (const id of ids) {
+				if (knownNodeIds.has(id)) {
+					onFocusNode(id);
+					return;
+				}
+			}
 			if (ids[0]) onFocusNode(ids[0]);
 		});
 	}
@@ -87,7 +105,7 @@
 		{:else}
 			<p class="hint">
 				<kbd>Ctrl+A</kbd> to select all, or use <strong>Copy all</strong>. After a normal click (no drag-select),
-				a line with a node id focuses that node.
+				a line with an edge id focuses that wire; otherwise a node id focuses the node.
 			</p>
 			<textarea
 				bind:this={ta}

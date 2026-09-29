@@ -26,9 +26,8 @@ function anim(
 }
 
 /**
- * **Ink diffusion painter** — ping-pong buffer: 3×3 stencil + nonlinear update (expr) + seeding.\n
- * Demonstrates: `texelFetch` convolution, frame masks, feedback stability, and custom GLSL nodes.\n
- * Passes: bufA (self-sample, ping-pong), image (color grading).\n
+ * **Gray–Scott reaction–diffusion** — ping-pong `bufA`, 3×3 Laplacian (texel stencil) + one Euler step + seeds.\n
+ * Stencil **weights sum to 0** so a flat field is not amplified each frame; image pass only grades `RGBA`.\n
  * Note: uses deterministic node ids for baked `paramAnimations`.
  */
 export function createFeedbackInkDiffusionFlow(): { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] } {
@@ -39,91 +38,118 @@ export function createFeedbackInkDiffusionFlow(): { nodes: Node<ShaderNodeData, 
 	const uvA = createGraphNodeFixedId('ink_uvA', 'uv', passA, { x: 40, y: 60 });
 	const pixA = createGraphNodeFixedId('ink_pix', 'frag_coord_xy', passA, { x: 40, y: 180 });
 	const prevA = createGraphNodeFixedId('ink_prev', 'sample_channel_texel', passA, { x: 260, y: 180 }, { channel: 0 });
+	// Zero-sum stencil: wC + 4*wN + 4*wD = 0 ⇒ Laplacian of a flat field is 0 (otherwise you only get “diffusion lift”).
 	const lapA = createGraphNodeFixedId('ink_lap', 'conv3x3_texel', passA, { x: 260, y: 300 }, {
 		channel: 0,
-		wCenter: -1.0,
-		wCardinal: 0.2,
-		wDiagonal: 0.05,
+		wCenter: -1.1,
+		wCardinal: 0.22,
+		wDiagonal: 0.055,
 		wrapMode: '0',
 	});
 
 	const frameA = createGraphNodeFixedId('ink_frame', 'frame', passA, { x: 40, y: 420 });
-	const maskInit = createGraphNodeFixedId('ink_mask_init', 'mask_frame_below', passA, { x: 260, y: 420 }, { edge: 90 });
+	const maskInit = createGraphNodeFixedId('ink_mask_init', 'mask_frame_below', passA, { x: 260, y: 420 }, { edge: 240 });
 
+	// seed1 = high-u substrate disk; seed2 = v-rich catalyst disk (Gray–Scott, not decorative RGB).
 	const seed1 = createGraphNodeFixedId('ink_seed1', 'splat_uv_disk_vec4', passA, { x: 260, y: 60 }, {
 		cx: 0.5,
 		cy: 0.52,
 		radius: 0.06,
-		r: 0.95,
-		g: 0.25,
+		r: 0.98,
+		g: 0.05,
 		b: 0.1,
 		alpha: 1,
 	});
 	const seed2 = createGraphNodeFixedId('ink_seed2', 'splat_uv_disk_vec4', passA, { x: 260, y: 110 }, {
 		cx: 0.36,
 		cy: 0.45,
-		radius: 0.045,
-		r: 0.1,
-		g: 0.55,
-		b: 0.9,
+		radius: 0.055,
+		r: 0.14,
+		g: 0.62,
+		b: 0.72,
 		alpha: 1,
 	});
 	const seedMix = createGraphNodeFixedId('ink_seed_mix', 'vec4_add', passA, { x: 520, y: 90 });
 	const seedGate = createGraphNodeFixedId('ink_seed_gate', 'vec4_mul_float', passA, { x: 740, y: 120 });
 
-	const fade = createGraphNodeFixedId('ink_fade', 'vec4_scale', passA, { x: 520, y: 210 }, { s: 0.992 });
-
 	const update = createGraphNodeFixedId('ink_update', 'expr_vec4', passA, { x: 520, y: 330 });
 	(update.data as any).expression = `
 // a = prev, b = laplacian, x = init mask
-vec4 p = {{in:a}};
+vec4 p0 = {{in:a}};
 vec4 l = {{in:b}};
-float m = clamp({{in:x}}, 0.0, 1.0);
+float mInit = clamp({{in:x}}, 0.0, 1.0);
 
-// Gray-Scott-ish 2-channel update (R,G) + dye (B) + alpha hold
+// Bootstrap: empty buffer + wrong (u,v) ratio ⇒ u*v² ≈ 0 forever — looks like “diffusion only”.
+vec4 p = vec4(
+  mix(p0.x, max(p0.x, 0.93), mInit * 0.7),
+  mix(p0.y, max(p0.y, 0.06), mInit * 0.55),
+  p0.z,
+  p0.w);
+
 float u = clamp(p.x, 0.0, 1.0);
 float v = clamp(p.y, 0.0, 1.0);
-float du = 0.85;
-float dv = 0.38;
-float F = 0.034 + 0.01 * p.z;   // feed modulated by dye
-float K = 0.062 + 0.01 * p.w;   // kill modulated by alpha
+
+// Pearson “coral”-class (F,κ) — large stable Turing region; z/w tilt F,κ slightly.
+float du = 0.18;
+float dv = 0.09;
+float F = 0.0545 + 0.004 * p.z;
+float K = 0.0618 + 0.005 * p.w;
 
 float lapU = l.x;
 float lapV = l.y;
-
 float uvv = u * v * v;
+// Gray-Scott: du*Lu - u*v^2 + F(1-u); dv*Lv + u*v^2 - (F+K)v
 u += du * lapU - uvv + F * (1.0 - u);
 v += dv * lapV + uvv - (F + K) * v;
 
-// Mild chroma diffusion in B; keep A as a hidden modulation channel
+// Tiny symmetry noise: keeps modes from freezing into a fat uniform after seeds stop (iTime / fragCoord are globals).
+float pn = sin(iTime * 0.65 + dot(gl_FragCoord.xy, vec2(0.012, 0.018)));
+v += 0.00011 * pn;
+u += 0.000025 * cos(pn * 1.3);
+
 float dye = clamp(p.z + 0.18 * l.z, 0.0, 1.0);
 float modA = clamp(p.w + 0.12 * l.w, 0.0, 1.0);
-
 vec4 q = vec4(clamp(u, 0.0, 1.0), clamp(v, 0.0, 1.0), dye, modA);
 
-// During init window, keep near-black to avoid full-screen flash.
-{{out:out}} = mix(q, vec4(1.0, 0.0, 0.0, 0.0), m * 0.02);
+{{out:out}} = mix(q, vec4(1.0, 0.0, 0.0, 0.0), mInit * 0.02);
 `;
 
-	const addState = createGraphNodeFixedId('ink_add_state', 'vec4_add', passA, { x: 980, y: 220 });
-	const addSeed = createGraphNodeFixedId('ink_add_seed', 'vec4_add', passA, { x: 1180, y: 220 });
-	const outA = createGraphNodeFixedId('ink_outA', 'frag_output', passA, { x: 1380, y: 220 });
+	const addSeed = createGraphNodeFixedId('ink_add_seed', 'vec4_add', passA, { x: 980, y: 220 });
+	const outA = createGraphNodeFixedId('ink_outA', 'frag_output', passA, { x: 1200, y: 220 });
 
-	// image
+	// image: grade full RGBA so dye (z) and mod (w) contribute — avoids two-level smoothstep posterization on u,v alone.
 	const uvI = createGraphNodeFixedId('ink_uvI', 'uv', passI, { x: 40, y: 560 });
 	const sampI = createGraphNodeFixedId('ink_sampI', 'sample_channel', passI, { x: 260, y: 560 }, { channel: 0 });
-	const split = createGraphNodeFixedId('ink_split', 'vec4_channels', passI, { x: 520, y: 560 });
 
-	const grade = createGraphNodeFixedId('ink_grade', 'expr_vec3', passI, { x: 740, y: 560 });
+	const grade = createGraphNodeFixedId('ink_grade', 'expr_vec4', passI, { x: 740, y: 560 });
 	(grade.data as any).expression = `
-// single expression (expr_vec3 does not allow statements)
-mix(
-  (0.06 + 0.94 * vec3(0.35, 0.55, 0.95) * pow(clamp(clamp({{in:b}}, 0.0, 1.0) - clamp({{in:a}}, 0.0, 1.0), 0.0, 1.0), 0.55)),
-  (0.18 + 0.82 * vec3(1.0, 0.6, 0.2) * pow(pow(clamp(clamp({{in:b}}, 0.0, 1.0) - clamp({{in:a}}, 0.0, 1.0), 0.0, 1.0), 0.55), 1.65)),
-  (0.55 + 0.45 * sin(6.2831 * clamp({{in:a}}, 0.0, 1.0)))
-)`;
+vec4 s = {{in:a}};
+float u = clamp(s.x, 0.0, 1.0);
+float v = clamp(s.y, 0.0, 1.0);
+float dye = clamp(s.z, 0.0, 1.0);
+float mw = clamp(s.w, 0.0, 1.0);
+float pu = pow(u, 0.58);
+float pv = pow(v, 0.55);
+float sep = pow(abs(v - u), 0.72);
+// 2D continuous blend in (u,v) — no nested smoothsteps (those snap to a handful of solids).
+vec3 paper = vec3(0.94, 0.91, 0.87);
+vec3 teal = vec3(0.05, 0.2, 0.34);
+vec3 rust = vec3(0.48, 0.15, 0.08);
+vec3 rgb =
+    paper
+    + pv * (teal - paper) * (0.55 + 0.35 * (1.0 - pu))
+    + pu * (rust - paper) * (0.5 + 0.4 * (1.0 - pv));
+// Phase tint: every (u,v) pair gets a slightly different hue drift (not just u vs v plates).
+float ang = atan(v - 0.16, u - 0.14);
+vec3 phase = 0.04 * vec3(cos(ang * 1.1), cos(ang * 1.1 + 2.1), cos(ang * 1.1 + 4.2));
+rgb += phase * (0.25 + 1.8 * sep);
+rgb += sep * vec3(0.16, 0.12, 0.06);
+rgb += dye * vec3(0.05, 0.14, 0.22);
+rgb += (mw - 0.5) * vec3(0.04, -0.02, 0.05);
+rgb = clamp(rgb, vec3(0.02), vec3(0.96));
+{{out:out}} = vec4(rgb, 1.0);
+`;
 
-	const v4I = createGraphNodeFixedId('ink_v4I', 'vec4_from_vec3', passI, { x: 980, y: 560 }, { a: 1 });
 	const outI = createGraphNodeFixedId('ink_outI', 'frag_output', passI, { x: 1200, y: 560 });
 
 	return {
@@ -138,16 +164,12 @@ mix(
 			toFlowNode(seed2),
 			toFlowNode(seedMix),
 			toFlowNode(seedGate),
-			toFlowNode(fade),
 			toFlowNode(update),
-			toFlowNode(addState),
 			toFlowNode(addSeed),
 			toFlowNode(outA),
 			toFlowNode(uvI),
 			toFlowNode(sampI),
-			toFlowNode(split),
 			toFlowNode(grade),
-			toFlowNode(v4I),
 			toFlowNode(outI),
 		],
 		edges: [
@@ -160,38 +182,30 @@ mix(
 			makeEdge(seed2.id, seedMix.id, 'out', 'b'),
 			makeEdge(seedMix.id, seedGate.id, 'out', 'a'),
 			makeEdge(maskInit.id, seedGate.id, 'm', 's'),
-			makeEdge(prevA.id, fade.id, 'rgba', 'a'),
 			makeEdge(prevA.id, update.id, 'rgba', 'a'),
 			makeEdge(lapA.id, update.id, 'out', 'b'),
 			makeEdge(maskInit.id, update.id, 'm', 'x'),
-			makeEdge(fade.id, addState.id, 'out', 'a'),
-			makeEdge(update.id, addState.id, 'out', 'b'),
-			makeEdge(addState.id, addSeed.id, 'out', 'a'),
+			makeEdge(update.id, addSeed.id, 'out', 'a'),
 			makeEdge(seedGate.id, addSeed.id, 'out', 'b'),
 			makeEdge(addSeed.id, outA.id, 'out', 'color'),
 
 			makeEdge(uvI.id, sampI.id, 'uv', 'uv'),
-			makeEdge(sampI.id, split.id, 'rgba', 'rgba'),
-			makeEdge(split.id, grade.id, 'x', 'a'),
-			makeEdge(split.id, grade.id, 'y', 'b'),
-			makeEdge(grade.id, v4I.id, 'out', 'rgb'),
-			makeEdge(v4I.id, outI.id, 'col', 'color'),
+			makeEdge(sampI.id, grade.id, 'rgba', 'a'),
+			makeEdge(grade.id, outI.id, 'out', 'color'),
 		],
 	};
 }
 
 export function metaForFeedbackInkDiffusion(): GraphDocument['meta'] {
 	const m: Record<string, ParamAnimationSpec> = {};
-	// Animate the convolution weights to create flowing motion.
-	m[paramAnimKey('ink_lap', 'wCardinal')] = anim('ink_lap', 'wCardinal', { curve: 'sine', speed: 0.09, range: 0.12, offset: 0.18 });
-	m[paramAnimKey('ink_lap', 'wDiagonal')] = anim('ink_lap', 'wDiagonal', { curve: 'triangle', speed: 0.07, range: 0.06, offset: 0.05 });
-	m[paramAnimKey('ink_fade', 's')] = anim('ink_fade', 's', { curve: 'smooth', speed: 0.05, range: 0.01, offset: 0.988 });
+	// Don’t animate Laplacian weights here: changing only card/diag breaks zero-sum and washes the field.
 	// Subtle seed drift
 	m[paramAnimKey('ink_seed1', 'cx')] = anim('ink_seed1', 'cx', { curve: 'sine', speed: 0.03, range: 0.18, offset: 0.5 });
 	m[paramAnimKey('ink_seed2', 'cy')] = anim('ink_seed2', 'cy', { curve: 'sine', speed: 0.04, range: 0.16, offset: 0.45 });
 
 	return {
 		name: 'showcase-ink-diffusion',
+		passSubsteps: { bufA: 5 },
 		iChannels: {
 			bufA: { 0: 'bufA' },
 			image: { 0: 'bufA' },
@@ -229,7 +243,7 @@ export function createSdfCathedralFlow(): { nodes: Node<ShaderNodeData, 'shader'
 		specPow: 52,
 		specStr: 0.32,
 		softShadow: 1,
-		shadowK: 30,
+		shadowK: 14,
 		curvAmp: 0.12,
 		curvEps: 0.02,
 		fogOn: 1,
@@ -376,7 +390,7 @@ export function createHybridFractalArtifactFlow(): { nodes: Node<ShaderNodeData,
 		specPow: 44,
 		specStr: 0.3,
 		softShadow: 1,
-		shadowK: 30,
+		shadowK: 14,
 		curvAmp: 0.12,
 		curvEps: 0.02,
 		fogOn: 1,

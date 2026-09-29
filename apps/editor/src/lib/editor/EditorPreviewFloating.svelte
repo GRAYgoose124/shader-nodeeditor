@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { CompileResult } from '@shadertoy/compiler';
+	import type { CompileResult, GraphMeta } from '@shadertoy/compiler';
 	import type { ShadertoyRunner } from '@shadertoy/runner';
 	import ShaderPreview from '$lib/ShaderPreview.svelte';
 
@@ -9,6 +9,7 @@
 	let {
 		open = $bindable(true),
 		gpuError = $bindable(null as string | null),
+		graphMeta = null as GraphMeta | null,
 		previewCompileResult,
 		compileResult,
 		reloadKey,
@@ -20,6 +21,7 @@
 	}: {
 		open?: boolean;
 		gpuError?: string | null;
+		graphMeta?: GraphMeta | null;
 		previewCompileResult: CompileResult | null;
 		compileResult: CompileResult;
 		reloadKey: number;
@@ -187,6 +189,7 @@
 		<div class="body">
 			<ShaderPreview
 				bind:gpuError
+				{graphMeta}
 				compileResult={previewCompileResult}
 				{reloadKey}
 				{onRunnerReady}

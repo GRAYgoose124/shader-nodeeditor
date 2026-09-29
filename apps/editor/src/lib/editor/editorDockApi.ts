@@ -56,6 +56,13 @@ const RESTORE_LAYOUT_PANELS = [
 		initialWidth: 200,
 	},
 	{
+		id: 'toolbar',
+		component: 'toolbar',
+		title: 'Toolbar',
+		position: { referencePanel: 'palette', direction: 'within' as const },
+		renderer: 'always' as const,
+	},
+	{
 		id: 'inspector',
 		component: 'inspector',
 		title: 'Inspector',
@@ -68,6 +75,13 @@ const RESTORE_LAYOUT_PANELS = [
 		title: 'Problems',
 		position: { referencePanel: 'graph', direction: 'below' as const },
 		initialHeight: 160,
+	},
+	{
+		id: 'presets',
+		component: 'presets',
+		title: 'Presets',
+		position: { referencePanel: 'problems', direction: 'within' as const },
+		renderer: 'always' as const,
 	},
 ] as const;
 

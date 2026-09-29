@@ -1,13 +1,19 @@
 import type { Node } from '@xyflow/svelte';
 import type { GraphNode, NodeTypeDef } from '@shadertoy/compiler';
-import { buildRegistry, isParamVisible } from '@shadertoy/compiler';
+import {
+	buildRegistry,
+	effectiveParamNodePins,
+	isParamSliderDriver,
+	isParamVisible,
+} from '@shadertoy/compiler';
 import type { FlowNodeAny, ShaderNodeData } from './flowDoc.js';
 import { getShaderNodeSubtitle, SHADER_NODE_SUBTITLE_EXTRA_H } from './shaderNodeSubtitle.js';
 
 /** Matches `toFlowNode` default; DOM grows with canvas params + optional subtitle. */
 export const SHADER_NODE_LAYOUT_WIDTH = 200;
 const BASE_SHADER_H = 110;
-const CANVAS_PARAM_ROW_H = 32;
+/** ~ pinned param row (label + slider + gap) for overlap packing */
+const PINNED_PARAM_ROW_H = 40;
 
 function estimateGraphNodeHeight(gn: GraphNode, customTypes?: NodeTypeDef[]): number {
 	const reg = buildRegistry(customTypes ?? []);
@@ -17,14 +23,11 @@ function estimateGraphNodeHeight(gn: GraphNode, customTypes?: NodeTypeDef[]): nu
 	if (getShaderNodeSubtitle(def, gn.data)) {
 		h += SHADER_NODE_SUBTITLE_EXTRA_H;
 	}
-	if (def.canvasParams?.length) {
-		for (const pid of def.canvasParams) {
-			const p = def.params.find((x) => x.id === pid);
-			if (!p || p.binding !== 'uniform') continue;
-			if (p.glslType !== 'float' && p.glslType !== 'int') continue;
-			if (!isParamVisible(p, gn.data)) continue;
-			h += CANVAS_PARAM_ROW_H;
-		}
+	for (const pid of effectiveParamNodePins(gn.data, def)) {
+		const p = def.params.find((x) => x.id === pid);
+		if (!p || !isParamSliderDriver(p)) continue;
+		if (!isParamVisible(p, gn.data)) continue;
+		h += PINNED_PARAM_ROW_H;
 	}
 	return h;
 }

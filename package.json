@@ -1,11 +1,14 @@
 {
 	"name": "shadertoy-nodeeditor",
 	"private": true,
+	"license": "MIT",
+	"engines": { "node": ">=22" },
 	"workspaces": ["packages/*", "apps/*"],
 	"scripts": {
 		"dev": "npm run dev -w editor",
 		"build": "npm run build -w @shadertoy/compiler && npm run build -w @shadertoy/runner && npm run build -w editor",
-    "test": "npm run test -w @shadertoy/compiler && npm run test -w editor",
+		"check": "npm run check -w editor",
+		"test": "npm run test -w @shadertoy/compiler && npm run test -w @shadertoy/runner && npm run test -w editor",
 		"postinstall": "npm run build -w @shadertoy/compiler && npm run build -w @shadertoy/runner"
 	}
 }

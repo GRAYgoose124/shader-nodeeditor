@@ -1,0 +1,73 @@
+import type { NodeTypeDef } from '../../types.js';
+
+export const coreIoNodes: NodeTypeDef[] = [
+	{
+		id: 'frag_output',
+		label: 'Fragment output',
+		category: 'Core',
+		description: 'Writes the final fragment color for this pass (`fragColor`). Each pass that draws needs one, with `color` wired.',
+		inputs: [{ id: 'color', type: 'vec4', label: 'RGBA' }],
+		outputs: [],
+		params: [],
+		template: `// node: {{nodeId}}\nfragColor = {{in:color}};`,
+	},
+	{
+		id: 'uv',
+		label: 'UV',
+		category: 'Core',
+		description: 'Fullscreen 0–1 UV coordinates (`v_uv`), same as Shadertoy `fragCoord`-style input for 2D effects and ray direction helpers.',
+		inputs: [],
+		outputs: [{ id: 'uv', type: 'vec2', label: 'UV' }],
+		params: [],
+		template: `// node: {{nodeId}}\nvec2 {{out:uv}} = v_uv;`,
+	},
+	{
+		id: 'time',
+		label: 'Time',
+		category: 'Core',
+		description: 'Shader time in seconds (`iTime`) for animation and procedural modulation.',
+		inputs: [],
+		outputs: [{ id: 't', type: 'float', label: 'iTime' }],
+		params: [],
+		template: `// node: {{nodeId}}\nfloat {{out:t}} = iTime;`,
+	},
+	{
+		id: 'resolution',
+		label: 'Resolution',
+		category: 'Core',
+		inputs: [],
+		outputs: [{ id: 'res', type: 'vec3', label: 'iResolution' }],
+		params: [],
+		template: `// node: {{nodeId}}\nvec3 {{out:res}} = iResolution;`,
+	},
+	{
+		id: 'mouse',
+		label: 'Mouse',
+		category: 'Core',
+		inputs: [],
+		outputs: [{ id: 'm', type: 'vec4', label: 'iMouse' }],
+		params: [],
+		template: `// node: {{nodeId}}\nvec4 {{out:m}} = iMouse;`,
+	},
+	{
+		id: 'audio_levels',
+		label: 'Audio levels',
+		category: 'Core',
+		description:
+			'Overall level and band energies from the bound audio media input (`u_audioLevel`, `u_audioBandLow/Mid/High`). Zero when no audio is active.',
+		inputs: [],
+		outputs: [{ id: 'a', type: 'vec4', label: 'level + bands' }],
+		params: [],
+		template: `// node: {{nodeId}}\nvec4 {{out:a}} = vec4(u_audioLevel, u_audioBandLow, u_audioBandMid, u_audioBandHigh);`,
+	},
+	{
+		id: 'frame',
+		label: 'Frame index',
+		category: 'Core',
+		inputs: [],
+		outputs: [{ id: 'f', type: 'float', label: 'iFrame' }],
+		params: [],
+		template: `// node: {{nodeId}}\nfloat {{out:f}} = float(iFrame);`,
+	},
+];
+

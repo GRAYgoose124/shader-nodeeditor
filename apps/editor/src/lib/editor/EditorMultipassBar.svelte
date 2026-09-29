@@ -4,16 +4,13 @@
 	const PASSES: BufferId[] = ['bufA', 'bufB', 'bufC', 'bufD', 'image'];
 
 	interface Props {
-		activePass?: BufferId;
+		activePass: BufferId;
+		onActivePassChange: (pass: BufferId) => void;
 		compileResult: CompileResult;
 		passHasNodes: (pass: BufferId) => boolean;
 	}
 
-	let {
-		activePass = $bindable<BufferId>('image'),
-		compileResult,
-		passHasNodes,
-	}: Props = $props();
+	let { activePass, onActivePassChange, compileResult, passHasNodes }: Props = $props();
 
 	function errorsForPass(pass: BufferId): string[] {
 		const prefix = `Pass ${pass}:`;
@@ -32,7 +29,7 @@
 			type="button"
 			class:active={activePass === pass}
 			class:has-nodes={passHasNodes(pass)}
-			onclick={() => (activePass = pass)}
+			onclick={() => onActivePassChange(pass)}
 			role="tab"
 			aria-selected={activePass === pass}
 		>

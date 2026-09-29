@@ -17,6 +17,10 @@ export type FrameNodeData = {
 	height: number;
 	/** Mirrors `GraphEditorFrame.boundaryPorts` when collapsed; see `subgraphContract` in compiler. */
 	boundaryPorts?: GraphEditorBoundaryPort[];
+	/** When set, compiler emits `vec3 <name>(vec3 p)` for this frame’s interior (see `GraphEditorFrame.exportVec3Fn`). */
+	exportVec3Fn?: string;
+	/** When set, compiler emits `float <name>(vec3 p)` for SDF reuse (see `GraphEditorFrame.exportSdfFn`). */
+	exportSdfFn?: string;
 };
 
 export type FlowNodeAny = Node<ShaderNodeData, 'shader'> | Node<FrameNodeData, 'group'>;
@@ -92,6 +96,8 @@ function framesFromFlowGroups(groups: Node<FrameNodeData, 'group'>[]): GraphEdit
 			label: d.label,
 			collapsed,
 			boundaryPorts: d.boundaryPorts,
+			...(d.exportVec3Fn?.trim() ? { exportVec3Fn: d.exportVec3Fn.trim() } : {}),
+			...(d.exportSdfFn?.trim() ? { exportSdfFn: d.exportSdfFn.trim() } : {}),
 		};
 	});
 }
@@ -164,6 +170,8 @@ export function docToFlowNodesAndEdges(doc: GraphDocument): {
 				width: fr.width,
 				height: fr.height,
 				boundaryPorts: fr.boundaryPorts,
+				...(fr.exportVec3Fn?.trim() ? { exportVec3Fn: fr.exportVec3Fn.trim() } : {}),
+				...(fr.exportSdfFn?.trim() ? { exportSdfFn: fr.exportSdfFn.trim() } : {}),
 			},
 			style: `width: ${fr.width}px; height: ${h}px`,
 		} as Node<FrameNodeData, 'group'>;
@@ -213,8 +221,8 @@ export function createGraphNode(
 	};
 }
 
-/** Matches layout heuristics in +page.svelte (grouping, align); helps XYFlow fitView / bounds before DOM measure. */
-const SHADER_NODE_LAYOUT = { width: 200, height: 110 };
+/** Width for fitView / overlap packing; height omitted so the node grows with handles + pinned params. */
+const SHADER_NODE_LAYOUT = { width: 200 };
 
 export function toFlowNode(gn: GraphNode): Node<ShaderNodeData, 'shader'> {
 	const graphNode: GraphNode = { ...gn, pass: gn.pass ?? 'image', position: { ...gn.position } };
@@ -223,7 +231,6 @@ export function toFlowNode(gn: GraphNode): Node<ShaderNodeData, 'shader'> {
 		type: 'shader',
 		position: gn.position,
 		width: SHADER_NODE_LAYOUT.width,
-		height: SHADER_NODE_LAYOUT.height,
 		data: { graphNode },
 	};
 	if (gn.parentId) flow.parentId = gn.parentId;

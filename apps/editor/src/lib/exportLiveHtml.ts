@@ -16,6 +16,12 @@ export type ExportLiveHtmlOptions = {
 	canvasHeight?: number;
 	/** When provided, exported page applies these animations each frame. */
 	paramAnimations?: Record<string, unknown> | null;
+	/**
+	 * Current float/int uniform values from the preview runner (dock / live uniforms).
+	 * Without this, the HTML uses compile manifest defaults from graph node data only —
+	 * values adjusted in the Live uniforms panel are not on the graph and would be lost.
+	 */
+	initialUniformScalars?: Record<string, number> | null;
 };
 
 /**
@@ -34,6 +40,7 @@ export function buildExportLiveHtmlDocument(
 		manifest: result.manifest,
 		passes: result.passes,
 		paramAnimations: opts.paramAnimations ?? null,
+		initialUniformScalars: opts.initialUniformScalars ?? null,
 	};
 	const json = JSON.stringify(bundle);
 	const b64 = btoa(unescape(encodeURIComponent(json)));

@@ -2,7 +2,7 @@
  * GLSL body for `raymarch_scene`. Placeholders {{nodeId}}, {{ns}}, {{sceneSdf}}, {{in:*}}, {{out:*}},
  * {{param:*}}, {{iChannel:param:surfTexChannel}} are filled by `expandTemplate` in compile.ts.
  */
-export const raymarchSceneTemplate = `// node: {{nodeId}} — raymarch / lighting / https://iquilezles.org/articles/raymarchingdf/ https://iquilezles.org/articles/rmimprovement/ https://iquilezles.org/articles/palettes/ https://iquilezles.org/articles/normalsSDF/
+const RM_CORE = `// node: {{nodeId}} — raymarch / lighting / https://iquilezles.org/articles/raymarchingdf/ https://iquilezles.org/articles/rmimprovement/ https://iquilezles.org/articles/palettes/ https://iquilezles.org/articles/normalsSDF/
 vec3 rmo_{{ns}} = {{in:ro}};
 vec3 rmd_{{ns}} = normalize({{in:rd}});
 float tmc_{{ns}} = 0.0;
@@ -10,21 +10,26 @@ vec3 amb_{{ns}} = vec3(float({{param:ambR}}), float({{param:ambG}}), float({{par
 vec3 clm_{{ns}} = amb_{{ns}};
 vec3 ldir_{{ns}} = vec3(float({{param:lx}}), float({{param:ly}}), float({{param:lz}}));
 ldir_{{ns}} = ldir_{{ns}} / max(length(ldir_{{ns}}), 1e-4);
-for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
+float hitMc_{{ns}} = 0.0;
+float dLst_{{ns}} = 1e9;
+float dtLst_{{ns}} = 0.0;
+for (int imc_{{ns}} = 0; imc_{{ns}} < 512; imc_{{ns}}++) {
   if (float(imc_{{ns}}) >= float({{param:maxSteps}})) break;
   vec3 pmc_{{ns}} = rmo_{{ns}} + tmc_{{ns}} * rmd_{{ns}};
   float dmc_{{ns}} = {{sceneSdf}}(pmc_{{ns}});
   float hitEpsP_{{ns}} = max(float({{param:eps}}), float({{param:relHitEps}}) * max(tmc_{{ns}}, 1e-4));
   if (dmc_{{ns}} < hitEpsP_{{ns}}) {
+    hitMc_{{ns}} = 1.0;
 //<<BEGIN_RM_REFINE>>
     if (float({{param:surfaceRefineOn}}) > 0.5) {
-      for (int srf_{{ns}} = 0; srf_{{ns}} < 2; srf_{{ns}}++) {
+      for (int srf_{{ns}} = 0; srf_{{ns}} < 4; srf_{{ns}}++) {
         float dsrf_{{ns}} = {{sceneSdf}}(pmc_{{ns}});
         pmc_{{ns}} -= rmd_{{ns}} * dsrf_{{ns}};
       }
     }
 //<<END_RM_REFINE>>
     float nEpsU_{{ns}} = float({{param:nEps}}) * (1.0 + float({{param:nEpsRel}}) * max(tmc_{{ns}}, 1e-4));
+//<<BEGIN_RM_PRIMARY_NORMAL>>
     vec3 nmc_{{ns}};
     if (float({{param:nTetra}}) > 0.5) {
       vec2 te_{{ns}} = vec2(1.0, -1.0) * 0.57735027 * nEpsU_{{ns}};
@@ -42,16 +47,22 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
     } else {
       nmc_{{ns}} = normalize(pmc_{{ns}});
     }
+//<<END_RM_PRIMARY_NORMAL>>
     float df_{{ns}} = max(dot(nmc_{{ns}}, ldir_{{ns}}), 0.0);
     float sha_{{ns}} = 1.0;
     if (float({{param:softShadow}}) > 0.5) {
+      vec3 shRo_{{ns}} = pmc_{{ns}} + nmc_{{ns}} * float({{param:shadowNormalBias}}) + ldir_{{ns}} * float({{param:shadowLightBias}});
       float tsh_{{ns}} = float({{param:shadowStart}});
-      for (int ish_{{ns}} = 0; ish_{{ns}} < 24; ish_{{ns}}++) {
-        float dh_{{ns}} = {{sceneSdf}}(pmc_{{ns}} + ldir_{{ns}} * tsh_{{ns}});
-        if (dh_{{ns}} < float({{param:shadowHitEps}})) { sha_{{ns}} = 0.0; break; }
-        sha_{{ns}} = min(sha_{{ns}}, float({{param:shadowK}}) * dh_{{ns}} / max(tsh_{{ns}}, 1e-4));
-        tsh_{{ns}} += clamp(dh_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
+      float shEps_{{ns}} = float({{param:shadowHitEps}});
+      float shRelax_{{ns}} = float({{param:shadowStepRelax}}) * float({{param:distTrust}});
+      for (int ish_{{ns}} = 0; ish_{{ns}} < 40; ish_{{ns}}++) {
+        float dh_{{ns}} = {{sceneSdf}}(shRo_{{ns}} + ldir_{{ns}} * tsh_{{ns}});
+        float shShell_{{ns}} = shEps_{{ns}} * (3.0 + 0.06 * tsh_{{ns}});
+        sha_{{ns}} = min(sha_{{ns}}, smoothstep(0.0, shShell_{{ns}}, dh_{{ns}}));
+        sha_{{ns}} = min(sha_{{ns}}, float({{param:shadowK}}) * max(dh_{{ns}}, 0.0) / max(tsh_{{ns}}, 1e-4));
+        tsh_{{ns}} += clamp(dh_{{ns}} * shRelax_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
         if (tsh_{{ns}} > float({{param:shadowMax}})) break;
+        if (sha_{{ns}} < 0.001) break;
       }
     }
     float occ_{{ns}} = 1.0;
@@ -99,7 +110,9 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
       lit_{{ns}} *= clamp(1.0 - float({{param:curvAmp}}) * max(cu_{{ns}}, 0.0), 0.25, 1.0);
     }
     clm_{{ns}} = amb_{{ns}} + occ_{{ns}} * lit_{{ns}};
-//<<BEGIN_RM_SKY>>
+`;
+
+const RM_OPTIONAL_AND_FOG = `//<<BEGIN_RM_SKY>>
     if (float({{param:skyBounceOn}}) > 0.5 && float({{param:skyStr}}) > 0.001) {
       vec3 rdSky_{{ns}} = reflect(rmd_{{ns}}, nmc_{{ns}});
       float tSk_{{ns}} = float({{param:skyBias}});
@@ -110,7 +123,11 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
         float dSk_{{ns}} = {{sceneSdf}}(pSk_{{ns}});
         float hitEpsSk_{{ns}} = max(float({{param:eps}}), float({{param:relHitEps}}) * max(tSk_{{ns}}, 1e-4));
         if (dSk_{{ns}} < hitEpsSk_{{ns}}) { missS_{{ns}} = 0.0; break; }
-        tSk_{{ns}} += max(dSk_{{ns}} * float({{param:stepScale}}), float({{param:minStep}}));
+        float dtSkR_{{ns}} = max(dSk_{{ns}} * float({{param:stepScale}}) * float({{param:distTrust}}), float({{param:minStep}}));
+        float dtSk_{{ns}} = dtSkR_{{ns}};
+        if (float({{param:maxStepAbs}}) > 0.0) dtSk_{{ns}} = min(dtSk_{{ns}}, float({{param:maxStepAbs}}));
+        if (float({{param:maxStepRelT}}) > 0.0) dtSk_{{ns}} = min(dtSk_{{ns}}, float({{param:maxStepRelT}}) * max(tSk_{{ns}}, 1e-4));
+        tSk_{{ns}} += dtSk_{{ns}};
         if (tSk_{{ns}} > float({{param:skyMaxT}})) break;
       }
       vec3 skyT_{{ns}} = vec3(float({{param:skyTopR}}), float({{param:skyTopG}}), float({{param:skyTopB}}));
@@ -152,13 +169,18 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
           float dfr_{{ns}} = max(dot(nnr_{{ns}}, ldir_{{ns}}), 0.0);
           float shar_{{ns}} = 1.0;
           if (float({{param:softShadow}}) > 0.5) {
+            vec3 shRor_{{ns}} = rpp_{{ns}} + nnr_{{ns}} * float({{param:shadowNormalBias}}) + ldir_{{ns}} * float({{param:shadowLightBias}});
             float tshr_{{ns}} = float({{param:shadowStart}});
-            for (int ishr_{{ns}} = 0; ishr_{{ns}} < 24; ishr_{{ns}}++) {
-              float dhr_{{ns}} = {{sceneSdf}}(rpp_{{ns}} + ldir_{{ns}} * tshr_{{ns}});
-              if (dhr_{{ns}} < float({{param:shadowHitEps}})) { shar_{{ns}} = 0.0; break; }
-              shar_{{ns}} = min(shar_{{ns}}, float({{param:shadowK}}) * dhr_{{ns}} / max(tshr_{{ns}}, 1e-4));
-              tshr_{{ns}} += clamp(dhr_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
+            float shEpsr_{{ns}} = float({{param:shadowHitEps}});
+            float shRelaxR_{{ns}} = float({{param:shadowStepRelax}}) * float({{param:distTrust}});
+            for (int ishr_{{ns}} = 0; ishr_{{ns}} < 40; ishr_{{ns}}++) {
+              float dhr_{{ns}} = {{sceneSdf}}(shRor_{{ns}} + ldir_{{ns}} * tshr_{{ns}});
+              float shShellR_{{ns}} = shEpsr_{{ns}} * (3.0 + 0.06 * tshr_{{ns}});
+              shar_{{ns}} = min(shar_{{ns}}, smoothstep(0.0, shShellR_{{ns}}, dhr_{{ns}}));
+              shar_{{ns}} = min(shar_{{ns}}, float({{param:shadowK}}) * max(dhr_{{ns}}, 0.0) / max(tshr_{{ns}}, 1e-4));
+              tshr_{{ns}} += clamp(dhr_{{ns}} * shRelaxR_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
               if (tshr_{{ns}} > float({{param:shadowMax}})) break;
+              if (shar_{{ns}} < 0.001) break;
             }
           }
           float occr_{{ns}} = 1.0;
@@ -201,7 +223,11 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
           rhit_{{ns}} = 1.0;
           break;
         }
-        rti_{{ns}} += max(rdi_{{ns}} * float({{param:reflStepScale}}), float({{param:minStep}}));
+        float dtRfR_{{ns}} = max(rdi_{{ns}} * float({{param:reflStepScale}}) * float({{param:distTrust}}), float({{param:minStep}}));
+        float dtRf_{{ns}} = dtRfR_{{ns}};
+        if (float({{param:maxStepAbs}}) > 0.0) dtRf_{{ns}} = min(dtRf_{{ns}}, float({{param:maxStepAbs}}));
+        if (float({{param:maxStepRelT}}) > 0.0) dtRf_{{ns}} = min(dtRf_{{ns}}, float({{param:maxStepRelT}}) * max(rti_{{ns}}, 1e-4));
+        rti_{{ns}} += dtRf_{{ns}};
         if (rti_{{ns}} > float({{param:reflMaxDist}})) break;
       }
       float F0d_{{ns}} = 0.04;
@@ -255,13 +281,18 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
             float dfG_{{ns}} = max(dot(nnG_{{ns}}, ldir_{{ns}}), 0.0);
             float shaG_{{ns}} = 1.0;
             if (float({{param:softShadow}}) > 0.5) {
+              vec3 shRoG_{{ns}} = pg_{{ns}} + nnG_{{ns}} * float({{param:shadowNormalBias}}) + ldir_{{ns}} * float({{param:shadowLightBias}});
               float tshG_{{ns}} = float({{param:shadowStart}});
-              for (int ishG_{{ns}} = 0; ishG_{{ns}} < 24; ishG_{{ns}}++) {
-                float dhG_{{ns}} = {{sceneSdf}}(pg_{{ns}} + ldir_{{ns}} * tshG_{{ns}});
-                if (dhG_{{ns}} < float({{param:shadowHitEps}})) { shaG_{{ns}} = 0.0; break; }
-                shaG_{{ns}} = min(shaG_{{ns}}, float({{param:shadowK}}) * dhG_{{ns}} / max(tshG_{{ns}}, 1e-4));
-                tshG_{{ns}} += clamp(dhG_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
+              float shEpsG_{{ns}} = float({{param:shadowHitEps}});
+              float shRelaxG_{{ns}} = float({{param:shadowStepRelax}}) * float({{param:distTrust}});
+              for (int ishG_{{ns}} = 0; ishG_{{ns}} < 40; ishG_{{ns}}++) {
+                float dhG_{{ns}} = {{sceneSdf}}(shRoG_{{ns}} + ldir_{{ns}} * tshG_{{ns}});
+                float shShellG_{{ns}} = shEpsG_{{ns}} * (3.0 + 0.06 * tshG_{{ns}});
+                shaG_{{ns}} = min(shaG_{{ns}}, smoothstep(0.0, shShellG_{{ns}}, dhG_{{ns}}));
+                shaG_{{ns}} = min(shaG_{{ns}}, float({{param:shadowK}}) * max(dhG_{{ns}}, 0.0) / max(tshG_{{ns}}, 1e-4));
+                tshG_{{ns}} += clamp(dhG_{{ns}} * shRelaxG_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
                 if (tshG_{{ns}} > float({{param:shadowMax}})) break;
+                if (shaG_{{ns}} < 0.001) break;
               }
             }
             vec3 texRawG_{{ns}};
@@ -304,13 +335,18 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
                   float df2_{{ns}} = max(dot(nn2_{{ns}}, ldir_{{ns}}), 0.0);
                   float sha2_{{ns}} = 1.0;
                   if (float({{param:softShadow}}) > 0.5) {
+                    vec3 shRo2_{{ns}} = p2_{{ns}} + nn2_{{ns}} * float({{param:shadowNormalBias}}) + ldir_{{ns}} * float({{param:shadowLightBias}});
                     float ts2_{{ns}} = float({{param:shadowStart}});
-                    for (int is2_{{ns}} = 0; is2_{{ns}} < 12; is2_{{ns}}++) {
-                      float dh2_{{ns}} = {{sceneSdf}}(p2_{{ns}} + ldir_{{ns}} * ts2_{{ns}});
-                      if (dh2_{{ns}} < float({{param:shadowHitEps}})) { sha2_{{ns}} = 0.0; break; }
-                      sha2_{{ns}} = min(sha2_{{ns}}, float({{param:shadowK}}) * dh2_{{ns}} / max(ts2_{{ns}}, 1e-4));
-                      ts2_{{ns}} += clamp(dh2_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
+                    float shEps2_{{ns}} = float({{param:shadowHitEps}});
+                    float shRelax2_{{ns}} = float({{param:shadowStepRelax}}) * float({{param:distTrust}});
+                    for (int is2_{{ns}} = 0; is2_{{ns}} < 20; is2_{{ns}}++) {
+                      float dh2_{{ns}} = {{sceneSdf}}(shRo2_{{ns}} + ldir_{{ns}} * ts2_{{ns}});
+                      float shShell2_{{ns}} = shEps2_{{ns}} * (3.0 + 0.06 * ts2_{{ns}});
+                      sha2_{{ns}} = min(sha2_{{ns}}, smoothstep(0.0, shShell2_{{ns}}, dh2_{{ns}}));
+                      sha2_{{ns}} = min(sha2_{{ns}}, float({{param:shadowK}}) * max(dh2_{{ns}}, 0.0) / max(ts2_{{ns}}, 1e-4));
+                      ts2_{{ns}} += clamp(dh2_{{ns}} * shRelax2_{{ns}}, float({{param:shadowStepMin}}), float({{param:shadowStepMax}}));
                       if (ts2_{{ns}} > float({{param:shadowMax}}) * 0.5) break;
+                      if (sha2_{{ns}} < 0.001) break;
                     }
                   }
                   vec3 tr2_{{ns}};
@@ -330,13 +366,21 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
                   gicol_{{ns}} += float({{param:giSecondStr}}) * (amb_{{ns}} + df2_{{ns}} * sha2_{{ns}} * sm2_{{ns}}) * tm2_{{ns}};
                   break;
                 }
-                t2_{{ns}} += max(d2_{{ns}} * float({{param:stepScale}}), float({{param:minStep}}));
+                float dt2R_{{ns}} = max(d2_{{ns}} * float({{param:stepScale}}) * float({{param:distTrust}}), float({{param:minStep}}));
+                float dt2_{{ns}} = dt2R_{{ns}};
+                if (float({{param:maxStepAbs}}) > 0.0) dt2_{{ns}} = min(dt2_{{ns}}, float({{param:maxStepAbs}}));
+                if (float({{param:maxStepRelT}}) > 0.0) dt2_{{ns}} = min(dt2_{{ns}}, float({{param:maxStepRelT}}) * max(t2_{{ns}}, 1e-4));
+                t2_{{ns}} += dt2_{{ns}};
                 if (t2_{{ns}} > float({{param:giMaxDist}}) * 0.5) break;
               }
             }
             break;
           }
-          tgi_{{ns}} += max(dg_{{ns}} * float({{param:stepScale}}), float({{param:minStep}}));
+          float dtGiR_{{ns}} = max(dg_{{ns}} * float({{param:stepScale}}) * float({{param:distTrust}}), float({{param:minStep}}));
+          float dtGi_{{ns}} = dtGiR_{{ns}};
+          if (float({{param:maxStepAbs}}) > 0.0) dtGi_{{ns}} = min(dtGi_{{ns}}, float({{param:maxStepAbs}}));
+          if (float({{param:maxStepRelT}}) > 0.0) dtGi_{{ns}} = min(dtGi_{{ns}}, float({{param:maxStepRelT}}) * max(tgi_{{ns}}, 1e-4));
+          tgi_{{ns}} += dtGi_{{ns}};
           if (tgi_{{ns}} > float({{param:giMaxDist}})) break;
         }
         giAcc_{{ns}} += gicol_{{ns}} * ndwi_{{ns}};
@@ -346,8 +390,62 @@ for (int imc_{{ns}} = 0; imc_{{ns}} < 160; imc_{{ns}}++) {
 //<<END_RM_GI>>
     break;
   }
-  tmc_{{ns}} += max(dmc_{{ns}} * float({{param:stepScale}}), float({{param:minStep}}));
+  dLst_{{ns}} = dmc_{{ns}};
+  float dtMcRaw_{{ns}} = max(dmc_{{ns}} * float({{param:stepScale}}) * float({{param:distTrust}}), float({{param:minStep}}));
+  float dtMc_{{ns}} = dtMcRaw_{{ns}};
+  if (float({{param:maxStepAbs}}) > 0.0) dtMc_{{ns}} = min(dtMc_{{ns}}, float({{param:maxStepAbs}}));
+  if (float({{param:maxStepRelT}}) > 0.0) dtMc_{{ns}} = min(dtMc_{{ns}}, float({{param:maxStepRelT}}) * max(tmc_{{ns}}, 1e-4));
+  dtLst_{{ns}} = dtMc_{{ns}};
+  tmc_{{ns}} += dtMc_{{ns}};
   if (tmc_{{ns}} > float({{param:maxDist}})) break;
+}
+if (hitMc_{{ns}} < 0.5 && float({{param:surfaceRecoverOn}}) > 0.5) {
+  float hitEpsRB_{{ns}} = max(float({{param:eps}}), float({{param:relHitEps}}) * max(tmc_{{ns}}, 1e-4));
+  float bandRB_{{ns}} = hitEpsRB_{{ns}} * float({{param:recoverBand}});
+  if (dLst_{{ns}} > 0.0 && dLst_{{ns}} < bandRB_{{ns}} && dtLst_{{ns}} > 1e-8 && tmc_{{ns}} >= dtLst_{{ns}}) {
+    float tLoRB_{{ns}} = tmc_{{ns}} - dtLst_{{ns}};
+    float tHiRB_{{ns}} = tmc_{{ns}};
+    for (int irb_{{ns}} = 0; irb_{{ns}} < 12; irb_{{ns}}++) {
+      float tMidRB_{{ns}} = 0.5 * (tLoRB_{{ns}} + tHiRB_{{ns}});
+      float dMidRB_{{ns}} = {{sceneSdf}}(rmo_{{ns}} + rmd_{{ns}} * tMidRB_{{ns}});
+      if (dMidRB_{{ns}} < hitEpsRB_{{ns}}) tHiRB_{{ns}} = tMidRB_{{ns}}; else tLoRB_{{ns}} = tMidRB_{{ns}};
+    }
+    tmc_{{ns}} = tHiRB_{{ns}};
+    vec3 pmcRB_{{ns}} = rmo_{{ns}} + rmd_{{ns}} * tmc_{{ns}};
+    float dFinRB_{{ns}} = {{sceneSdf}}(pmcRB_{{ns}});
+    float hitEpsFin_{{ns}} = max(float({{param:eps}}), float({{param:relHitEps}}) * max(tmc_{{ns}}, 1e-4));
+    if (dFinRB_{{ns}} < hitEpsFin_{{ns}} && abs(dFinRB_{{ns}}) < 1e4) {
+      float nEpsRB_{{ns}} = float({{param:nEps}}) * (1.0 + float({{param:nEpsRel}}) * max(tmc_{{ns}}, 1e-4));
+      vec3 nrb_{{ns}};
+      if (float({{param:nTetra}}) > 0.5) {
+        vec2 teb_{{ns}} = vec2(1.0, -1.0) * 0.57735027 * nEpsRB_{{ns}};
+        nrb_{{ns}} = normalize(
+          teb_{{ns}}.xyy * {{sceneSdf}}(pmcRB_{{ns}} + teb_{{ns}}.xyy) +
+          teb_{{ns}}.yyx * {{sceneSdf}}(pmcRB_{{ns}} + teb_{{ns}}.yyx) +
+          teb_{{ns}}.yxy * {{sceneSdf}}(pmcRB_{{ns}} + teb_{{ns}}.yxy) +
+          teb_{{ns}}.xxx * {{sceneSdf}}(pmcRB_{{ns}} + teb_{{ns}}.xxx));
+      } else if (float({{param:iqNormal}}) > 0.5) {
+        vec2 veb_{{ns}} = vec2(nEpsRB_{{ns}}, 0.0);
+        nrb_{{ns}} = normalize(vec3(
+          {{sceneSdf}}(pmcRB_{{ns}} + veb_{{ns}}.xyy) - {{sceneSdf}}(pmcRB_{{ns}} - veb_{{ns}}.xyy),
+          {{sceneSdf}}(pmcRB_{{ns}} + veb_{{ns}}.yxy) - {{sceneSdf}}(pmcRB_{{ns}} - veb_{{ns}}.yxy),
+          {{sceneSdf}}(pmcRB_{{ns}} + veb_{{ns}}.yyx) - {{sceneSdf}}(pmcRB_{{ns}} - veb_{{ns}}.yyx)));
+      } else {
+        nrb_{{ns}} = normalize(pmcRB_{{ns}});
+      }
+      float dfRb_{{ns}} = max(dot(nrb_{{ns}}, ldir_{{ns}}), 0.0);
+      vec3 texMixRb_{{ns}} = vec3(1.0);
+//<<BEGIN_RM_SDF_ALBEDO>>
+      texMixRb_{{ns}} *= {{sceneMatFn}}(pmcRB_{{ns}});
+//<<END_RM_SDF_ALBEDO>>
+      vec3 baseRb_{{ns}} = vec3(0.06, 0.07, 0.1);
+      vec3 sunRb_{{ns}} = vec3(0.85, 0.82, 0.78);
+      vec3 palRb_{{ns}} = 0.5 + 0.5 * cos(vec3(float({{param:palA}}), float({{param:palB}}), float({{param:palC}})) + dfRb_{{ns}} * 6.28318 + vec3(0.0, 2.1, 4.2));
+      vec3 sunMixRb_{{ns}} = mix(sunRb_{{ns}}, palRb_{{ns}}, float({{param:palMix}}));
+      vec3 litRb_{{ns}} = (baseRb_{{ns}} + dfRb_{{ns}} * sunMixRb_{{ns}}) * texMixRb_{{ns}};
+      clm_{{ns}} = amb_{{ns}} + litRb_{{ns}};
+    }
+  }
 }
 vec3 outRgb_{{ns}} = clm_{{ns}};
 if (float({{param:fogOn}}) > 0.5) {
@@ -356,3 +454,5 @@ if (float({{param:fogOn}}) > 0.5) {
   outRgb_{{ns}} = mix(outRgb_{{ns}}, fogC_{{ns}}, fogM_{{ns}});
 }
 vec4 {{out:col}} = vec4(outRgb_{{ns}}, 1.0);`;
+
+export const raymarchSceneTemplate = RM_CORE + RM_OPTIONAL_AND_FOG;

@@ -2,17 +2,20 @@
 
 export type PresetId =
 	| 'raymarch'
+	| 'raymarch_scene_sdf_repeat'
 	| 'feedback'
 	| 'lit_sphere'
 	| 'still_life'
 	| 'csg_subtract'
 	| 'domain_fbm_sphere'
+	| 'sdf_celtic_knot'
 	| 'p7_lookat_menger'
 	| 'p7_voronoi'
 	| 'p7_palette'
 	| 'p7_fresnel'
 	| 'p8_torus_octa_hex'
 	| 'p8_torus_octa_feedback'
+	| 'sdf_ifs3_branch'
 	| 'proc2d_fbm'
 	| 'proc2d_ridged_warp'
 	| 'proc2d_kaleid_voro'
@@ -30,6 +33,7 @@ export type PresetId =
 	| 'chronos_lattice'
 	| 'show_ink_diffusion'
 	| 'show_sdf_cathedral'
-	| 'show_fractal_artifact';
+	| 'show_fractal_artifact'
+	| 'show_sdf_full_pipeline';
 
 export type PresetGroup = { label: string; items: { id: PresetId; label: string }[] };

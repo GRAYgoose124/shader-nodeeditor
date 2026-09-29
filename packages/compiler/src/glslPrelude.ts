@@ -1,4 +1,5 @@
 import type { UniformManifestEntry } from './types.js';
+import { globalUniformDeclBlock } from './globalUniforms.js';
 
 export const VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -13,14 +14,7 @@ void main() {
 
 export const FRAG_HEADER = `#version 300 es
 precision highp float;
-uniform vec3 iResolution;
-uniform float iTime;
-uniform vec4 iMouse;
-uniform int iFrame;
-uniform sampler2D iChannel0;
-uniform sampler2D iChannel1;
-uniform sampler2D iChannel2;
-uniform sampler2D iChannel3;
+${globalUniformDeclBlock()}
 in vec2 v_uv;
 out vec4 fragColor;
 

@@ -33,6 +33,7 @@ export function exportGraphJson(
 export function exportLivePageOrAlert(
 	compileResult: CompileResult,
 	graphMeta: GraphDocument['meta'],
+	initialUniformScalars?: Record<string, number>,
 ): void {
 	if (compileResult.errors.length > 0) {
 		alert('Fix compile errors before exporting a live page.');
@@ -42,6 +43,10 @@ export function exportLivePageOrAlert(
 		const html = buildExportLiveHtmlDocument(compileResult, {
 			title: graphMeta.name ?? 'Shader export',
 			paramAnimations: graphMeta.editor?.paramAnimations ?? null,
+			initialUniformScalars:
+				initialUniformScalars && Object.keys(initialUniformScalars).length > 0
+					? initialUniformScalars
+					: null,
 		});
 		const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
 		const a = document.createElement('a');
@@ -116,7 +121,7 @@ export function flowStateFromPresetId(
 	graphMeta: GraphDocument['meta'];
 } {
 	const { nodes: n, edges: e, meta } = loaders[presetId]();
-	let flowNodes = sortFlowNodesParentsBeforeChildren(n as FlowNodeAny[]);
+	let flowNodes = sortFlowNodesParentsBeforeChildren(n);
 	const edgesOut = mapEdgesShaderWire(e);
 	flowNodes = sortFlowNodesParentsBeforeChildren(
 		packShaderNodesResolveOverlap(flowNodes, customNodeTypes),

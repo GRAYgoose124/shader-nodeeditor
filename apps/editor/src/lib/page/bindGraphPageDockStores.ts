@@ -2,27 +2,34 @@ import type { Connection, Edge, Node, NodeTypes, EdgeTypes } from '@xyflow/svelt
 import type {
 	BufferId,
 	CompileResult,
+	GraphDocument,
 	GraphMeta,
 	GraphNode,
 	NodeTypeDef,
 	ParamAnimationSpec,
+	SceneSdfProbeVisualization,
 	UniformManifestEntry,
 } from '@shadertoy/compiler';
+import type { PresetId } from '$lib/presetIds.js';
 import type { GraphUniformPreset } from '@shadertoy/compiler';
 import type { ShadertoyRunner } from '@shadertoy/runner';
 import type { FrameNodeData, ShaderNodeData } from '$lib/flowDoc.js';
-import type { ShaderNodePatchFn } from '$lib/editor/shaderNodeContext.js';
+import type { ShaderNodeParamBypassPatchFn, ShaderNodePatchFn } from '$lib/editor/shaderNodeContext.js';
 import {
 	flowDockStore,
 	paletteDockStore,
 	inspectorDockStore,
 	problemsDockStore,
 	previewDockStore,
+	toolbarDockStore,
+	presetLibraryDockStore,
 	type FlowDockProps,
 	type PaletteDockProps,
 	type InspectorDockProps,
 	type ProblemsDockProps,
 	type PreviewDockProps,
+	type ToolbarDockProps,
+	type PresetLibraryDockProps,
 } from '$lib/editor/editorDockStores.js';
 
 /** Mirrors `EditorInspectorPanel` readiness prop. */
@@ -40,6 +47,8 @@ export type GraphPageDockPushes = {
 	inspector: InspectorDockProps;
 	problems: ProblemsDockProps;
 	preview: PreviewDockProps;
+	toolbar: ToolbarDockProps;
+	presets: PresetLibraryDockProps;
 };
 
 /** Push all dock panel stores in one place (call from a single `$effect` in `+page.svelte`). */
@@ -49,6 +58,8 @@ export function syncGraphPageDockStores(s: GraphPageDockPushes): void {
 	inspectorDockStore.set(s.inspector);
 	problemsDockStore.set(s.problems);
 	previewDockStore.set(s.preview);
+	toolbarDockStore.set(s.toolbar);
+	presetLibraryDockStore.set(s.presets);
 }
 
 export type GraphPageDockBuildInput = {
@@ -58,6 +69,7 @@ export type GraphPageDockBuildInput = {
 	snapGridOn: boolean;
 	isValidConnection: (c: Connection | Edge) => boolean;
 	patchShaderNodeParam: ShaderNodePatchFn;
+	patchShaderNodeParamGraphBypass: ShaderNodeParamBypassPatchFn;
 	onConnect: (c: Connection) => void;
 	onFlowDelete: (p: { nodes: Node[]; edges: Edge[] }) => void;
 	onSelectionChange: (p: { nodes: Node[] }) => void;
@@ -71,11 +83,14 @@ export type GraphPageDockBuildInput = {
 	};
 	focusProblemTick: number;
 	focusProblemNodeId: string | null;
+	focusProblemEdgeTick: number;
+	focusProblemEdgeId: string | null;
 	filteredPalette: PaletteDockProps['filteredPalette'];
 	paletteQuery: string;
 	addNodeType: (typeId: string) => void;
 	setPaletteQuery: (q: string) => void;
 	graphMeta: GraphMeta;
+	patchGraphMeta: (fn: (draft: GraphMeta) => void) => void;
 	activePass: BufferId;
 	readiness: Readiness;
 	previewDockPanelPresent: boolean;
@@ -104,6 +119,9 @@ export type GraphPageDockBuildInput = {
 	registry: Map<string, NodeTypeDef>;
 	shaderGraphNodesById: Map<string, GraphNode>;
 	onProblemsFocusNode: (id: string) => void;
+	onProblemsFocusEdge: (id: string) => void;
+	knownEdgeIds: Set<string>;
+	knownNodeIds: Set<string>;
 	graphEpoch: number;
 	previewLookatOrbitNodeId: string | null;
 	bumpUniformUiTick: () => void;
@@ -117,10 +135,55 @@ export type GraphPageDockBuildInput = {
 	previewTimeRestartKey: number;
 	onPreviewRestartTime: () => void;
 	previewBeforeFrame: (r: ShadertoyRunner) => void;
+	previewAfterFrame?: (r: ShadertoyRunner) => void;
+	previewSupportsSceneSdfProbe: boolean;
+	previewSupportsWireProbe: boolean;
+	previewFlowImageHasSceneSdf: boolean;
+	selectedNodeIdForGpuDebug: string | null;
+	debugSceneProbeOn: boolean;
+	onDebugSceneProbeOn: (v: boolean) => void;
+	debugSceneViz: SceneSdfProbeVisualization;
+	onDebugSceneViz: (v: SceneSdfProbeVisualization) => void;
+	debugProbePx: number;
+	debugProbePy: number;
+	debugProbePz: number;
+	onDebugProbeP: (axis: 0 | 1 | 2, v: number) => void;
+	debugProbeScale: number;
+	onDebugProbeScale: (v: number) => void;
+	debugProbeSlice: number;
+	onDebugProbeSlice: (v: number) => void;
+	debugProbeEps: number;
+	onDebugProbeEps: (v: number) => void;
+	debugWireProbeOn: boolean;
+	onDebugWireProbeOn: (v: boolean) => void;
+	debugHudText: string | null;
+	previewSampleDebugCenterPixel: boolean;
+	onPreviewDebugCenterPixel?: (rgba: [number, number, number, number]) => void;
 	patchParamAnimations: (
 		mut: (draft: Record<string, ParamAnimationSpec>) => void,
 		recompile: boolean,
 	) => void;
+	getCurrentDoc: () => GraphDocument;
+	customNodeTypes: NodeTypeDef[];
+	loadPreset: (which: PresetId) => void;
+	loadUserPresetFromDoc: (doc: GraphDocument) => void;
+	setActivePass: (pass: BufferId) => void;
+	passHasNodes: (pass: BufferId) => boolean;
+	onToggleSnapGrid: () => void;
+	onRestoreDockPanels: () => void;
+	duplicateSelectedNodes: () => void;
+	groupSelectedShaderNodes: () => void;
+	snapSelectionPositionsToGrid: () => void;
+	alignSelectionNodes: () => void;
+	bakeSceneSdfToCustomNode: () => void;
+	bakeSelectionToCustomNode: () => void;
+	addFrame: () => void;
+	exportJson: () => void;
+	exportLivePage: () => void;
+	exportSelectedSubgraph: () => void;
+	importGraphJson: (ev: Event) => void;
+	importSubgraphJson: (ev: Event) => void;
+	importNodeDefs: (ev: Event) => void;
 };
 
 export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphPageDockPushes {
@@ -132,6 +195,7 @@ export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphP
 			snapGridOn: input.snapGridOn,
 			isValidConnection: input.isValidConnection,
 			patchShaderParam: input.patchShaderNodeParam,
+			patchShaderParamGraphBypass: input.patchShaderNodeParamGraphBypass,
 			onConnect: input.onConnect,
 			onFlowDelete: input.onFlowDelete,
 			onSelectionChange: input.onSelectionChange,
@@ -143,6 +207,8 @@ export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphP
 			errorPortsByNode: input.mergedDiagnostics.errorPortsByNode,
 			focusTick: input.focusProblemTick,
 			focusNodeId: input.focusProblemNodeId,
+			focusEdgeTick: input.focusProblemEdgeTick,
+			focusEdgeId: input.focusProblemEdgeId,
 		},
 		palette: {
 			filteredPalette: input.filteredPalette,
@@ -152,6 +218,7 @@ export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphP
 		},
 		inspector: {
 			graphMeta: input.graphMeta,
+			patchGraphMeta: input.patchGraphMeta,
 			activePass: input.activePass,
 			readiness: input.readiness,
 			previewDockPanelPresent: input.previewDockPanelPresent,
@@ -185,10 +252,17 @@ export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphP
 			compileResult: input.compileResult,
 			gpuError: input.gpuError,
 			onFocusNode: input.onProblemsFocusNode,
+			onFocusEdge: input.onProblemsFocusEdge,
+			knownEdgeIds: input.knownEdgeIds,
+			knownNodeIds: input.knownNodeIds,
 		},
 		preview: {
+			activePass: input.activePass,
+			onActivePassChange: input.setActivePass,
+			passHasNodes: input.passHasNodes,
 			previewCompileResult: input.previewCompileResult,
 			compileResult: input.compileResult,
+			graphMeta: input.graphMeta,
 			reloadKey: input.graphEpoch,
 			lookatOrbitNodeId: input.previewLookatOrbitNodeId,
 			onUniformTweak: input.bumpUniformUiTick,
@@ -202,6 +276,57 @@ export function buildGraphPageDockPushes(input: GraphPageDockBuildInput): GraphP
 			previewTimeRestartKey: input.previewTimeRestartKey,
 			onPreviewRestartTime: input.onPreviewRestartTime,
 			beforeFrame: input.previewBeforeFrame,
+			afterFrame: input.previewAfterFrame,
+			flowImageHasSceneSdf: input.previewFlowImageHasSceneSdf,
+			selectedNodeIdForDebug: input.selectedNodeIdForGpuDebug,
+			supportsSceneSdfProbe: input.previewSupportsSceneSdfProbe,
+			supportsWireProbe: input.previewSupportsWireProbe,
+			debugSceneProbeOn: input.debugSceneProbeOn,
+			onDebugSceneProbeOn: input.onDebugSceneProbeOn,
+			debugSceneViz: input.debugSceneViz,
+			onDebugSceneViz: input.onDebugSceneViz,
+			debugProbePx: input.debugProbePx,
+			debugProbePy: input.debugProbePy,
+			debugProbePz: input.debugProbePz,
+			onDebugProbeP: input.onDebugProbeP,
+			debugProbeScale: input.debugProbeScale,
+			onDebugProbeScale: input.onDebugProbeScale,
+			debugProbeSlice: input.debugProbeSlice,
+			onDebugProbeSlice: input.onDebugProbeSlice,
+			debugProbeEps: input.debugProbeEps,
+			onDebugProbeEps: input.onDebugProbeEps,
+			debugWireProbeOn: input.debugWireProbeOn,
+			onDebugWireProbeOn: input.onDebugWireProbeOn,
+			debugHudText: input.debugHudText,
+			sampleDebugCenterPixel: input.previewSampleDebugCenterPixel,
+			onDebugCenterPixel: input.onPreviewDebugCenterPixel,
+		},
+		toolbar: {
+			activePass: input.activePass,
+			onActivePassChange: input.setActivePass,
+			compileResult: input.compileResult,
+			snapGridOn: input.snapGridOn,
+			onDuplicate: input.duplicateSelectedNodes,
+			onGroup: input.groupSelectedShaderNodes,
+			onSnapGrid: input.snapSelectionPositionsToGrid,
+			onToggleSnapGrid: input.onToggleSnapGrid,
+			onAlignNodes: input.alignSelectionNodes,
+			onBakeSceneSdf: input.bakeSceneSdfToCustomNode,
+			onBakeSelection: input.bakeSelectionToCustomNode,
+			onAddFrame: input.addFrame,
+			onExportGraph: input.exportJson,
+			onExportLivePage: input.exportLivePage,
+			onExportSelection: input.exportSelectedSubgraph,
+			onImportGraph: input.importGraphJson,
+			onMergeSubgraph: input.importSubgraphJson,
+			onImportNodeDefs: input.importNodeDefs,
+			onRestoreDockPanels: input.onRestoreDockPanels,
+		},
+		presets: {
+			onLoadBuiltin: input.loadPreset,
+			onLoadUserDoc: input.loadUserPresetFromDoc,
+			getCurrentDoc: input.getCurrentDoc,
+			customNodeTypes: input.customNodeTypes,
 		},
 	};
 }

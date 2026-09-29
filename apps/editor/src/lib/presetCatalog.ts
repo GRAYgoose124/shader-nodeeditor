@@ -1,12 +1,13 @@
-import type { Edge, Node } from '@xyflow/svelte';
+import type { Edge } from '@xyflow/svelte';
 import type { GraphDocument } from '@shadertoy/compiler';
 import type { PresetId, PresetGroup } from './presetIds.js';
-import type { ShaderNodeData } from './flowDoc.js';
+import type { FlowNodeAny } from './flowDoc.js';
 import {
 	createAdvancedAtelierNebulaFlow,
 	createBufaFractalTexturedRaymarchFlow,
 	createChronosLatticeFlow,
 	createCsgSubtractFlow,
+	createCelticKnotSdfFlow,
 	createDomainFbmSphereFlow,
 	createFeedbackDemoFlow,
 	createFeedbackInkDiffusionFlow,
@@ -28,11 +29,14 @@ import {
 	createProcedural2dRidgedWarpFlow,
 	createProcedural2dTiledKaleidVoroFlow,
 	createRaymarchSdfFlow,
+	createRaymarchSceneSdfRepeatFlow,
 	createSdfCathedralFlow,
 	createStillLifeSdfFlow,
 	createSuesqueSandboxFieldFlow,
 	createTorusOctaFeedbackTessFlow,
 	createTorusOctaHexTessFlow,
+	createSdfIfs3BranchFlow,
+	createSdfFullPipelineShowcaseFlow,
 	metaForAdvancedAtelierNebula,
 	metaForBufaFractalTexturedRaymarch,
 	metaForChronosLattice,
@@ -43,16 +47,17 @@ import {
 	metaForSdfCathedral,
 	metaForStillLife,
 	metaForSuesqueSandboxField,
+	metaForSdfFullPipelineShowcase,
 } from './presets/index.js';
 
 export type PresetBundle = {
-	nodes: Node<ShaderNodeData, 'shader'>[];
+	nodes: FlowNodeAny[];
 	edges: Edge[];
 	meta: GraphDocument['meta'];
 };
 
-function cloneFlow(get: () => { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] }): {
-	nodes: Node<ShaderNodeData, 'shader'>[];
+function cloneFlow(get: () => { nodes: FlowNodeAny[]; edges: Edge[] }): {
+	nodes: FlowNodeAny[];
 	edges: Edge[];
 } {
 	return structuredClone(get());
@@ -115,12 +120,31 @@ export const PRESET_CATALOG: readonly PresetCatalogEntry[] = [
 		},
 	},
 	{
+		id: 'show_sdf_full_pipeline',
+		groupLabel: 'Showcase',
+		uiLabel:
+			'SDF power stack (exported warp call + lattice shrine CSG, feedback tess, orbit albedo, raymarch)',
+		load: () => {
+			const { nodes, edges } = cloneFlow(createSdfFullPipelineShowcaseFlow);
+			return { nodes, edges, meta: metaForSdfFullPipelineShowcase() };
+		},
+	},
+	{
 		id: 'raymarch',
 		groupLabel: 'Starters',
 		uiLabel: 'Raymarch + SDF box',
 		load: () => {
 			const { nodes, edges } = cloneFlow(createRaymarchSdfFlow);
 			return { nodes, edges, meta: { name: 'raymarch' } };
+		},
+	},
+	{
+		id: 'raymarch_scene_sdf_repeat',
+		groupLabel: 'Starters',
+		uiLabel: 'Raymarch + scene SDF repeat (row of spheres)',
+		load: () => {
+			const { nodes, edges } = cloneFlow(createRaymarchSceneSdfRepeatFlow);
+			return { nodes, edges, meta: { name: 'raymarch-scene-sdf-repeat' } };
 		},
 	},
 	{
@@ -157,6 +181,15 @@ export const PRESET_CATALOG: readonly PresetCatalogEntry[] = [
 		load: () => {
 			const { nodes, edges } = cloneFlow(createDomainFbmSphereFlow);
 			return { nodes, edges, meta: { name: 'starter-domain-fbm-sphere' } };
+		},
+	},
+	{
+		id: 'sdf_celtic_knot',
+		groupLabel: 'Starters',
+		uiLabel: 'Trefoil knot (2,3 torus knot)',
+		load: () => {
+			const { nodes, edges } = cloneFlow(createCelticKnotSdfFlow);
+			return { nodes, edges, meta: { name: 'starter-sdf-trefoil-knot' } };
 		},
 	},
 	{
@@ -341,6 +374,15 @@ export const PRESET_CATALOG: readonly PresetCatalogEntry[] = [
 		load: () => {
 			const { nodes, edges } = cloneFlow(createTorusOctaFeedbackTessFlow);
 			return { nodes, edges, meta: { name: 'phase8-torus-octa-feedback' } };
+		},
+	},
+	{
+		id: 'sdf_ifs3_branch',
+		groupLabel: 'Advanced · motifs',
+		uiLabel: 'IFS 3D branch + sphere (pick shorter)',
+		load: () => {
+			const { nodes, edges } = cloneFlow(createSdfIfs3BranchFlow);
+			return { nodes, edges, meta: { name: 'sdf-ifs3-branch-sphere' } };
 		},
 	},
 ];

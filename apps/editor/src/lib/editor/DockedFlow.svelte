@@ -35,6 +35,7 @@
 			snapGridOn={f.snapGridOn}
 			isValidConnection={f.isValidConnection}
 			patchShaderParam={f.patchShaderParam}
+			patchShaderParamGraphBypass={f.patchShaderParamGraphBypass}
 			onConnect={f.onConnect}
 			onFlowDelete={f.onFlowDelete}
 			onSelectionChange={f.onSelectionChange}
@@ -46,6 +47,8 @@
 			errorPortsByNode={f.errorPortsByNode}
 			focusTick={f.focusTick}
 			focusNodeId={f.focusNodeId}
+			focusEdgeTick={f.focusEdgeTick}
+			focusEdgeId={f.focusEdgeId}
 		/>
 	</div>
 {/if}

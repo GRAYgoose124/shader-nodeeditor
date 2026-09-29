@@ -66,7 +66,7 @@ describe('mergeSubgraphV1IntoFlow', () => {
 				{
 					id: 'p1',
 					typeId: 'dst_f',
-					pass: 'image',
+					pass: 'image' as const,
 					position: { x: 100, y: 100 },
 					data: {},
 				},

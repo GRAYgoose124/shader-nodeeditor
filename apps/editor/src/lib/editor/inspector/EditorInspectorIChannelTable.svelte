@@ -1,8 +1,15 @@
 <script lang="ts">
-	import type { CompileResult, GraphMeta } from '@shadertoy/compiler';
+	import type { CompileResult, GraphMeta, IChannelSlotBinding } from '@shadertoy/compiler';
 	import type { BufferId } from '@shadertoy/compiler';
 	import { DEFAULT_PASS_ORDER } from '@shadertoy/compiler';
 	import { missingIChannelBindingsForPass } from '$lib/ichannelHints.js';
+
+	function formatIChannelCell(b: IChannelSlotBinding | undefined): string {
+		if (b === undefined) return '—';
+		if (typeof b === 'string') return b;
+		if (b && typeof b === 'object' && 'media' in b) return `media:${b.media}`;
+		return '—';
+	}
 
 	let {
 		graphMeta,
@@ -45,7 +52,7 @@
 			<tr class:ich-active={p === activePass}>
 				<td class="ich-pass">{p}</td>
 				{#each [0, 1, 2, 3] as k (k)}
-					<td>{graphMeta.iChannels?.[p]?.[k as 0 | 1 | 2 | 3] ?? '—'}</td>
+					<td>{formatIChannelCell(graphMeta.iChannels?.[p]?.[k as 0 | 1 | 2 | 3])}</td>
 				{/each}
 			</tr>
 		{/each}

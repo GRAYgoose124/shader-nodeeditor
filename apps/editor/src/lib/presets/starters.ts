@@ -81,6 +81,61 @@ export function createRaymarchSdfFlow(): { nodes: Node<ShaderNodeData, 'shader'>
 }
 
 /**
+ * **`scene_sdf_repeat_begin` / `scene_sdf_repeat_end`** — compile-time `min` over a row of spheres along **X** (see node docs for limits).
+ */
+export function createRaymarchSceneSdfRepeatFlow(): { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] } {
+	const pass = 'image' as const;
+	const uv = createGraphNode('uv', pass, { x: 32, y: 160 });
+	const ray = createGraphNode('ray_from_uv', pass, { x: 200, y: 160 }, { fov: 58, camZ: 3.5 });
+	const march = createGraphNode('raymarch_scene', pass, { x: 420, y: 140 }, {
+		maxSteps: 128,
+		maxDist: 56,
+		eps: 0.001,
+		ambR: 0.04,
+		ambG: 0.05,
+		ambB: 0.08,
+	});
+	const fragOut = createGraphNode('frag_output', pass, { x: 680, y: 160 });
+
+	const paramP = createGraphNode('sdf_param_p', pass, { x: 40, y: 380 });
+	const repB = createGraphNode('scene_sdf_repeat_begin', pass, { x: 220, y: 380 }, {
+		zoneId: 'row',
+		count: 6,
+		axis: 'x',
+		spacing: 0.52,
+		indexName: 'ri',
+	});
+	const sph = createGraphNode('sdf_sphere', pass, { x: 440, y: 380 }, { r: 0.22 });
+	const repE = createGraphNode('scene_sdf_repeat_end', pass, { x: 640, y: 380 }, { zoneId: 'row' });
+	const sink = createGraphNode('scene_sdf_sink', pass, { x: 820, y: 380 });
+
+	const nodes = [
+		toFlowNode(uv),
+		toFlowNode(ray),
+		toFlowNode(march),
+		toFlowNode(fragOut),
+		toFlowNode(paramP),
+		toFlowNode(repB),
+		toFlowNode(sph),
+		toFlowNode(repE),
+		toFlowNode(sink),
+	];
+
+	const edges: Edge[] = [
+		makeEdge(uv.id, ray.id, 'uv', 'uv'),
+		makeEdge(ray.id, march.id, 'ro', 'ro'),
+		makeEdge(ray.id, march.id, 'rd', 'rd'),
+		makeEdge(march.id, fragOut.id, 'col', 'color'),
+		makeEdge(paramP.id, repB.id, 'p', 'p'),
+		makeEdge(repB.id, sph.id, 'p', 'p'),
+		makeEdge(sph.id, repE.id, 'd', 'd'),
+		makeEdge(repE.id, sink.id, 'd', 'd'),
+	];
+
+	return { nodes, edges };
+}
+
+/**
  * Torus ∩ octahedron, hex-tiled (XZ honeycomb + Y). IQ octahedron size s (vertex at distance s);
  * tune torus: R+r ≈ 1.02·s, 2(R−r) ≈ 0.93·s/√3 so the tube hole sits just inside the face-center radius s/√3.
  */
@@ -191,7 +246,7 @@ export function createTorusOctaFeedbackTessFlow(): { nodes: Node<ShaderNodeData,
 		'sdf_tessellate_feedback',
 		pass,
 		{ x: 900, y: 400 },
-		{ foldOx: 0.22, foldOy: 0.22, foldOz: 0.22, scale: 1.85, iters: 3 },
+		{ loopMode: 'kifs', foldOx: 0.22, foldOy: 0.22, foldOz: 0.22, scale: 1.85, iters: 3 },
 	);
 	const sink = createGraphNode('scene_sdf_sink', pass, { x: 1080, y: 400 });
 
@@ -223,6 +278,96 @@ export function createTorusOctaFeedbackTessFlow(): { nodes: Node<ShaderNodeData,
 	];
 	return { nodes, edges };
 }
+
+/**
+ * Raymarched sphere with **3D IFS branching**: rotate p → two `ifs_affine3` maps → `ifs_pick_shorter3` → sphere.
+ * Mirrors the 2D chaos-game pick shorter pattern ([`ifs_pick_shorter2`](packages/compiler/src/builtins/ifs/control2d.ts)) in scene space.
+ */
+export function createSdfIfs3BranchFlow(): { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] } {
+	const pass = 'image' as const;
+	const uv = createGraphNode('uv', pass, { x: 32, y: 140 });
+	const ray = createGraphNode('ray_from_uv', pass, { x: 200, y: 140 }, { fov: 58, camZ: 3.6 });
+	const march = createGraphNode('raymarch_scene', pass, { x: 440, y: 120 }, {
+		maxSteps: 128,
+		maxDist: 48,
+		eps: 0.001,
+		ambR: 0.06,
+		ambG: 0.07,
+		ambB: 0.1,
+	});
+	const fragOut = createGraphNode('frag_output', pass, { x: 680, y: 140 });
+
+	const paramP = createGraphNode('sdf_param_p', pass, { x: 32, y: 400 });
+	const rot = createGraphNode('domain_rotate_euler_time', pass, { x: 200, y: 400 }, {
+		tx: 0,
+		ty: 0.35,
+		tz: 0,
+		rx: 0,
+		ry: 0,
+		rz: 0,
+	});
+	const aff1 = createGraphNode('ifs_affine3', pass, { x: 420, y: 320 }, {
+		m00: 0.45,
+		m01: -0.14,
+		m02: 0.1,
+		m10: 0.14,
+		m11: 0.45,
+		m12: -0.06,
+		m20: -0.08,
+		m21: 0.08,
+		m22: 0.44,
+		tx: 0.05,
+		ty: -0.04,
+		tz: 0.02,
+	});
+	const aff2 = createGraphNode('ifs_affine3', pass, { x: 420, y: 480 }, {
+		m00: 0.38,
+		m01: 0.16,
+		m02: -0.08,
+		m10: -0.18,
+		m11: 0.4,
+		m12: 0.1,
+		m20: 0.06,
+		m21: -0.08,
+		m22: 0.4,
+		tx: -0.04,
+		ty: 0.06,
+		tz: -0.02,
+	});
+	const pick = createGraphNode('ifs_pick_shorter3', pass, { x: 640, y: 400 }, {});
+	const sph = createGraphNode('sdf_sphere', pass, { x: 840, y: 400 }, { r: 0.34 });
+	const sink = createGraphNode('scene_sdf_sink', pass, { x: 1000, y: 400 });
+
+	return {
+		nodes: [
+			toFlowNode(uv),
+			toFlowNode(ray),
+			toFlowNode(march),
+			toFlowNode(fragOut),
+			toFlowNode(paramP),
+			toFlowNode(rot),
+			toFlowNode(aff1),
+			toFlowNode(aff2),
+			toFlowNode(pick),
+			toFlowNode(sph),
+			toFlowNode(sink),
+		],
+		edges: [
+			makeEdge(uv.id, ray.id, 'uv', 'uv'),
+			makeEdge(ray.id, march.id, 'ro', 'ro'),
+			makeEdge(ray.id, march.id, 'rd', 'rd'),
+			makeEdge(march.id, fragOut.id, 'col', 'color'),
+			makeEdge(paramP.id, rot.id, 'p', 'p'),
+			makeEdge(rot.id, aff1.id, 'p', 'p'),
+			makeEdge(rot.id, aff2.id, 'p', 'p'),
+			makeEdge(aff1.id, pick.id, 'p', 'a'),
+			makeEdge(aff2.id, pick.id, 'p', 'b'),
+			makeEdge(pick.id, sph.id, 'p', 'p'),
+			makeEdge(sph.id, sink.id, 'd', 'd'),
+		],
+	};
+}
+
 /** Schlick Fresnel (V·H) → SDF visualize false-color (phase 7F / out lighting). */
 /** Lit sphere + time rotation (minimal raymarched scene). */
 export function createLitSphereFlow(): { nodes: Node<ShaderNodeData, 'shader'>[]; edges: Edge[] } {
@@ -415,8 +560,8 @@ export function createStillLifeSdfFlow(): { nodes: Node<ShaderNodeData, 'shader'
 		skyBotR: 0.07,
 		skyBotG: 0.08,
 		skyBotB: 0.11,
-		softShadow: 1,
-		shadowK: 28,
+		softShadow: 0,
+		shadowK: 12,
 		shadowMax: 18,
 		aoOn: 1,
 		aoStep: 0.055,

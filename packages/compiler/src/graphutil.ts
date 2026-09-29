@@ -76,7 +76,7 @@ export function buildIncomingEdgeMap(edges: GraphEdge[]): Map<string, GraphEdge[
 
 /**
  * Nodes on any path from `fromId` back to `paramPId` (inclusive of both).
- * Used to extract the motif subgraph for `sdf_tessellate_feedback`.
+ * Used to extract the motif subgraph for `sdf_tessellate_feedback` and `sdf_iterate_pullback`.
  */
 export function collectMotifAncestorSet(
 	fromId: string,
